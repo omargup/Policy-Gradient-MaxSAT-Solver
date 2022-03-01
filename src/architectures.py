@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-import utils
+import src.utils as utils
 
 
 class Encoder(nn.Module):
@@ -47,6 +47,7 @@ class Embedding(nn.Module):
     def forward(self, X, *args):
         raise NotImplementedError
 
+
 class EmbeddingForLiterals(Embedding):
     """ """
     def __init__(self, num_labels, embedding_size, **kwargs):
@@ -57,15 +58,16 @@ class EmbeddingForLiterals(Embedding):
     def forward(self, X):
         #X: [batch_size, seq_len=1]
         if X < 0:
-            X = X+n
+            X = X + n
         elif X > 0:
-            X = X+n-1
+            X = X + n - 1
     
         X = F.one_hot(X, self.num_labels).float()
         #x: [batch_size, seq_len=1, num_features=num_labels]
         return self.embedding(X)
         #x: [batch_size, seq_len=1, num_features=embedding_size]
         #[-n, ..., -1, 1, .., n]
+
 
 class EmbeddingOHLinear(Embedding):
     """ """
@@ -83,6 +85,7 @@ class EmbeddingOHLinear(Embedding):
 
 
 
+
 class BasicRNN(Decoder):
     """ """
     def __init__(self, cell, input_size, embedding_size, hidden_size, output_size,
@@ -92,16 +95,16 @@ class BasicRNN(Decoder):
         self.num_layers = num_layers
         self.hidden_size = hidden_size
 
-        self.var_embedding = EmbeddingOneHotW(num_labels = input_size,
-                                       embedding_size = embedding_size)
-        self.assig_embedding = EmbeddingOneHotW(num_labels = 3,
-                                         embedding_size = embedding_size)
+        self.var_embedding = EmbeddingOHLinear(num_labels = input_size,
+                                               embedding_size = embedding_size)
+        self.assig_embedding = EmbeddingOHLinear(num_labels = 3,
+                                                 embedding_size = embedding_size)
         if self.cell == 'GRU':
-            self.rnn = nn.GRU(embedding_size*2, hidden_size, num_layers,
-                            batch_first=True, dropout=dropout)
+            self.rnn = nn.GRU(embedding_size * 2, hidden_size, num_layers,
+                            batch_first = True, dropout = dropout)
         elif self.cell == 'LSTM':
-            self.rnn = nn.LSTM(embedding_size*2, hidden_size, num_layers,
-                            batch_first=True, dropout=dropout)
+            self.rnn = nn.LSTM(embedding_size * 2, hidden_size, num_layers,
+                            batch_first = True, dropout = dropout)
         else:
             raise TypeError("{} is not a valid cell, try with 'LSTM' or 'GRU'.".format(self.cell))
 
@@ -109,8 +112,19 @@ class BasicRNN(Decoder):
         self.dense_out = nn.Linear(hidden_size, output_size)
 
     def init_state_basicrnn(self, *args):
-        #state: [num_layers, batch_size, hidden_size]
-        return torch.zeros(self.num_layers, 1, self.hidden_size)
+        if self.cell == 'GRU':
+            #state: [num_layers, batch_size, hidden_size]
+            return torch.zeros(self.num_layers, 1, self.hidden_size)
+            #h = nn.Parameter(torch.empty(self.num_layers, 1, self.hidden_size))
+            #return nn.init.uniform_(h, a=-0.8, b=0.8)
+        elif self.cell == 'LSTM':
+            #h: [num_layers, batch_size, hidden_size]
+            h = torch.zeros(self.num_layers, 1, self.hidden_size)
+            #c: [num_layers, batch_size, hidden_size]
+            c = torch.zeros(self.num_layers, 1, self.hidden_size)
+            return (h, c)
+
+        #self.raw_beta = nn.Parameter(data=torch.Tensor(1), requires_grad=True)
 
     def forward(self, X, state):
         X, a_prev = X
@@ -148,13 +162,17 @@ class BaseAggregator(nn.Module):
     def forward(self, src):
         raise NotImplementedError("This feature hasn't been implemented yet!")
 
+
 class ConcatenateAggregator(BaseAggregator):
     def forward(self, src):
         return torch.flatten(src, start_dim=1)
 
+
 class SumAggregator(BaseAggregator):
     def forward(self, src):
         return torch.sum(src, dim=1, keepdim=False)
+
+
 
 
 
@@ -169,37 +187,64 @@ class Baseline(nn.Module):
 
 class BaselineRollout(Baseline):
     """ """
-    def __init__(self, num_rollouts, sampled, **kwargs):
+    def __init__(self, num_rollouts=-1, **kwargs):
         super(BaselineRollout, self).__init__(**kwargs)
-        self.num_rollouts = num_rollouts
-        self.sampled = sampled
-
-    def forward(self, formula, logits):
-        #logits: [seq_len, feature_size=2]
-
-        #if greedy rollout
-        if not self.sampled: 
-            assignment = torch.argmax(logits, dim=-1)
-            #assigment: [seq_len]
-            _, num_sat, _ = utils.assignment_verifier(formula,
-                                                      assignment=assignment.tolist())
-            baseline = torch.tensor(num_sat, dtype=float)
-        
-        #if sampled rollouts
+        if num_rollouts == -1:
+            self.strategy = 'greedy'
+            self.num_rollouts = 1
+        elif num_rollouts > 0:
+            self.strategy = 'sampled'
+            self.num_rollouts = num_rollouts
         else:
-            action_softmax = F.softmax(logits, dim = -1)
-            action_dist = torch.distributions.Categorical(action_softmax)
-            #action_dist: [seq_len, feature_size=2]
-            
-            num_sats = []
-            for i in range(self.num_rollouts):
-                assigment = action_dist.sample()
-                #assigment: [seq_len]
+            raise TypeError("{} is not a valid number of rollouts, try with -1 for 'greedy' or 1, 2, 3, etc. for 'sampled'.".format(num_rollouts))
 
-                _, num_sat, _ = utils.assignment_verifier(formula,
-                                                          assignment=assigment.tolist())
-                num_sats.append(num_sat)
-        
-            baseline = torch.tensor(num_sats, dtype=float).mean()
+    def forward(self, formula, policy_network, num_variables):
+        num_sats = []
+        for i in range(self.num_rollouts):
+            assignment = utils.sampling_assignment(policy_network, num_variables, self.strategy)
+            #assigment: [seq_len]
+            _, num_sat, _ = utils.assignment_verifier(formula, assignment=assignment)
+            num_sats.append(num_sat)
+        baseline = torch.tensor(num_sat, dtype=float).mean()
 
         return baseline
+
+
+
+# class BaselineRollout(Baseline):
+#     """ """
+#     def __init__(self, num_rollouts=-1, **kwargs):
+#         super(BaselineRollout, self).__init__(**kwargs)
+#         self.num_rollouts = num_rollouts
+
+#     def forward(self, formula, logits):
+#         ## logits: [seq_len, feature_size=2]
+
+#         #TODO ERROR MESSAGE
+
+#         #if greedy rollout
+#         if self.num_rollouts == -1: 
+#             assignment = torch.argmax(logits, dim=-1)
+#             #assigment: [seq_len]
+#             _, num_sat, _ = utils.assignment_verifier(formula,
+#                                                       assignment=assignment.tolist())
+#             baseline = torch.tensor(num_sat, dtype=float)
+        
+#         #if sampled rollouts
+#         else:
+#             action_softmax = F.softmax(logits, dim = -1)
+#             action_dist = torch.distributions.Categorical(action_softmax)
+#             #action_dist: [seq_len, feature_size=2]
+            
+#             num_sats = []
+#             for i in range(self.num_rollouts):
+#                 assigment = action_dist.sample()
+#                 #assigment: [seq_len]
+
+#                 _, num_sat, _ = utils.assignment_verifier(formula,
+#                                                           assignment=assigment.tolist())
+#                 num_sats.append(num_sat)
+        
+#             baseline = torch.tensor(num_sats, dtype=float).mean()
+
+#         return baseline
