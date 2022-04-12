@@ -84,6 +84,7 @@ def train(formula,
    
             # Action logits
             action_logits, state= policy_network.decoder((var_t, action_prev, context), state)
+            # ::action_logits:: [batch_size=1, seq_len=1, feature_size=2]
 
             # Prob distribution over actions
             #action_softmax = F.softmax(action_logits, dim = -1)  
@@ -111,19 +112,20 @@ def train(formula,
 
             action_prev = action.unsqueeze(dim=-1)
             #::action_prev:: [batch_size, seq_len=1, feature_size=1]
-    
+        
+        policy_network.eval()
         with torch.no_grad():
             # Compute num of sat clauses
             is_sat, num_sat, _ = assignment_verifier(formula, actions)
             num_sat = torch.tensor(num_sat, dtype=float).detach()
 
-            #TODO: Check baseline, encoder-decoder
+            #TODO: Check baseline
             #Compute baseline
             baseline_val = torch.tensor(0, dtype=float)
             if baseline is not None:
                 #baseline_val = baseline(formula, torch.stack(action_logits_list)).detach()
-                baseline_val = baseline(formula, policy_network, num_variables).detach()
-    
+                baseline_val = baseline(formula, num_variables, variables, policy_network, device).detach()
+        policy_network.train()
         #Get loss
         action_log_probs = torch.cat(action_log_probs)
         entropy_list = torch.tensor(entropy_list)

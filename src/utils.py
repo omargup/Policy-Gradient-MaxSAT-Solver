@@ -69,49 +69,66 @@ def dimacs2list(dimacs_path):
     return n, m, formula
 
 
-def greedy_selection(action_logits):
+def greedy_strategy(action_logits):
     action = np.argmax(action_logits, axis=-1)
     return action
 
-def sampled_selection(action_logits):
+def sampled_strategy(action_logits):
     action_dist = distributions.Categorical(logits= action_logits)
     #print(torch.nn.functional.softmax(action_logits, -1))  # for debugging
     action = action_dist.sample()
     return action
 
-def sampling_assignment(policy_network, num_variables, strategy):
-    policy_network.eval()
-    with torch.no_grad():
+def sampling_assignment(formula, num_variables, variables, policy_network,
+                        device, strategy):
+    # Encoder
+    enc_output = None
+    if policy_network.encoder is not None:
+        enc_output = policy_network.encoder(formula, num_variables, variables)
 
-        X = torch.tensor([[i for i in range(num_variables)]])
-        # 'X': [batch_size=1, seq_len]
-        X = X.permute(1, 0).unsqueeze(-1)
-        # 'X': [seq_len, batch_size=1]
+    # Initialize Decoder Variables 
+    var = policy_network.init_dec_var(enc_output, formula, num_variables, variables)
+    # ::var:: [batch_size, seq_len, feature_size]
 
-        action_prev = torch.tensor(2).reshape(1,1) 
-        # 'action_prev':[batch_size=1, seq_len=1]
-        state = policy_network.init_state_basicrnn()
-        # 'state': [num_layers, batch_size, hidden_size]
+    batch_size = var.shape[0]
 
-        actions = []
-        for t, x in enumerate(X):
-            # 'x': [seq_len=1, batch_size=1]
-            x = x.permute(1, 0)
-            # 'x': [batch_size=1, seq_len=1]
-            input_t = (x, action_prev)
-            action_logits, state = policy_network((input_t), state)
-            # 'action_logits': [batch_size=1, seq_len=1, feature_size=2]
-            #print(action_logits)  # for debugging
+    # Initialize action_prev at time t=0 with token 2.
+    #   Token 0 is for assignment 0, token 1 for assignment 1
+    action_prev = torch.tensor([2] * batch_size, dtype=torch.long).reshape(-1,1,1).to(device)
+    # ::action_prev:: [batch_size, seq_len=1, feature_size=1]
 
-            if strategy == 'greedy':
-                action =  greedy_selection(action_logits)
-            elif strategy == 'sampled':
-                action = sampled_selection(action_logits)
-            else:
-                raise TypeError("{} is not a valid strategy, try with 'greedy' or 'sampled'.".format(strategy))
-            
-            #print(action.item())  # for debugging
-            actions.append(action.item())
-            action_prev = action
+    # Initialize Decoder Context
+    context = policy_network.init_dec_context(enc_output, formula, num_variables, variables, batch_size).to(device)
+    # ::context:: [batch_size, feature_size]
+
+    # Initialize Decoder state
+    state = policy_network.init_dec_state(enc_output, batch_size)
+    if state is not None:
+        state = state.to(device)
+    # ::state:: [num_layers, batch_size=1, hidden_size]
+
+
+    actions = []
+    for t in range(num_variables):
+        #TODO: send to device here.
+
+        var_t = var[:,t:t+1,:].to(device)
+
+        # Action logits
+        action_logits, state= policy_network.decoder((var_t, action_prev, context), state)
+        # ::action_logits:: [batch_size=1, seq_len=1, feature_size=2]
+        #print(action_logits)  # for debugging
+
+        if strategy == 'greedy':
+            action =  greedy_strategy(action_logits)
+        elif strategy == 'sampled':
+            action = sampled_strategy(action_logits)
+        else:
+            raise TypeError("{} is not a valid strategy, try with 'greedy' or 'sampled'.".format(strategy))
+        
+        #print(action.item())  # for debugging
+        actions.append(action.item())
+        action_prev = action.unsqueeze(dim=-1)
+        #::action_prev:: [batch_size, seq_len=1, feature_size=1]
         
     return actions
