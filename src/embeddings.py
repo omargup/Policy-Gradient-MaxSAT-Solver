@@ -21,18 +21,19 @@ class BasicEmbedding(BaseEmbedding):
     def forward(self, X):
         # X shape: [batch_size, seq_len, features_size=1]
         if X.dim() != 3 or X.shape[2] != 1:
-            raise TypeError("X must be a tensor with shape [batch_size, seq_len, features_size=1].")
-        X = X.view(1,-1)
+            #TODO: Validate torch.long
+            raise TypeError("X must be a integer tensor with shape [batch_size, seq_len, features_size=1].")
+        X = X.squeeze()
         # X shape: [batch_size, seq_len]
         X = F.one_hot(X, self.num_labels).float()
-        # X shape: [batch_size, seq_len, num_features=num_labels]
+        # X shape: [batch_size, seq_len, features_size=num_labels]
         return self.embedding(X)
-        # X shape: [batch_size, seq_len, num_features=embedding_size]
+        # X shape: [batch_size, seq_len, features_size=embedding_size]
 
 
 class IdentityEmbedding(BaseEmbedding):
     """ """
-    def __init__(self, num_labels, embedding_size=128, **kwargs):
+    def __init__(self, **kwargs):
         super(IdentityEmbedding, self).__init__(**kwargs)
 
     def forward(self, X):

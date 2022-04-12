@@ -17,8 +17,8 @@ class EmptyContext(BaseContext):
     def __init__(self, **kwargs):
         super(EmptyContext, self).__init__(**kwargs)
 
-    def forward(self, enc_output, formula, num_variables, variables, batch_size, device, *args):
-        return torch.empty([batch_size, 0], device=device)
+    def forward(self, enc_output, formula, num_variables, variables, batch_size, *args):
+        return torch.empty([batch_size, 0])
         # ::context:: [batch_size, feature_size=0]
         
     

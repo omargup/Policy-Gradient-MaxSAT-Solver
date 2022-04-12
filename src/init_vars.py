@@ -17,6 +17,6 @@ class BasicVars(BaseVars):
     def __init__(self, **kwargs):
         super(BasicVars, self).__init__(**kwargs)
     
-    def forward(self, enc_output, formula, num_variables, variables, device, *args):
-        return torch.tensor([i for i in range(num_variables)], device=device).reshape(1,-1,1)
+    def forward(self, enc_output, formula, num_variables, variables, *args):
+        return torch.tensor([i for i in range(num_variables)]).reshape(1,-1,1)
         # ::var:: [batch_size, seq_len, feature_size]
