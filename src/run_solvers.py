@@ -1,8 +1,9 @@
+import torch
 import torch.optim as optim
 
 from src.encoder_decoder import EncoderDecoder
 from src.train import train
-import utils
+import src.utils as utils
 
 from PyMiniSolvers import minisolvers
 
@@ -52,8 +53,10 @@ def learning_solver(formula, num_variables, variables, encoder, decoder, init_de
                                         clip_val,
                                         verbose)
     
-    strategy='greedy'
-    assignment = utils.sampling_assignment(formula, num_variables, variables,
+    policy_network.eval()
+    with torch.no_grad():
+        strategy='greedy'
+        assignment = utils.sampling_assignment(formula, num_variables, variables,
                                            policy_network, device, strategy)
     # Verifying the number of satisfied clauses
     is_sat, num_sat, eval_formula = utils.assignment_verifier(formula, assignment)
