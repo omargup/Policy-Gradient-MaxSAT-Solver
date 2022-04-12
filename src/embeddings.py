@@ -23,7 +23,7 @@ class BasicEmbedding(BaseEmbedding):
         if X.dim() != 3 or X.shape[2] != 1:
             #TODO: Validate torch.long
             raise TypeError("X must be a integer tensor with shape [batch_size, seq_len, features_size=1].")
-        X = X.squeeze()
+        X = X.squeeze(dim=-1)
         # X shape: [batch_size, seq_len]
         X = F.one_hot(X, self.num_labels).float()
         # X shape: [batch_size, seq_len, features_size=num_labels]

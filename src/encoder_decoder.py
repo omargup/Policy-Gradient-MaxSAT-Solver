@@ -52,14 +52,16 @@ class EncoderDecoder(nn.Module):
                 raise TypeError("init_dec_context must inherit from BaseContext.")
 
         if init_dec_state is None:
+            #TODO: Check this!
             self.init_dec_state = ZerosState()
+            #self.init_dec_state = ZerosState(cell, hidden_size, num_layers)
         elif init_dec_state is not None:
             if not issubclass(type(init_dec_state), BaseState):
                 raise TypeError("init_dec_state must inherit from BaseState.")
         
     def forward(self, dec_input, enc_input=None, *args):
         raise NotImplementedError
-        
+
         # var, a_prev = (dec_input)
         # # var: [batch_size, seq_len]
         # # a_prev: [batch_size, seq_len]

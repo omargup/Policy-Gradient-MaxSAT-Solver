@@ -11,26 +11,33 @@ class BaseState(nn.Module):
     def forward(self, *args):
         raise NotImplementedError
 
-
 class ZerosState(BaseState):
     """ """
-    def __init__(self, cell, hidden_size, num_layers, **kwargs):
+    def __init__(self, **kwargs):
         super(ZerosState, self).__init__(**kwargs)
-        self.cell = cell
-        self.hidden_size = hidden_size
-        self.num_layers = num_layers
     
-    def forward(self, batch_size, *args):
-        if self.cell == 'GRU':
-            # state shape: [num_layers, batch_size, hidden_size]
-            return torch.zeros(self.num_layers, batch_size, self.hidden_size)
+    def forward(self, *args):
+            return None
 
-        elif self.cell == 'LSTM':
-            # h shape: [num_layers, batch_size, hidden_size]
-            h = torch.zeros(self.num_layers, batch_size, self.hidden_size)
-            # c shape: [num_layers, batch_size, hidden_size]
-            c = torch.zeros(self.num_layers, batch_size, self.hidden_size)
-            return (h, c)
+# class ZerosState(BaseState):
+#     """ """
+#     def __init__(self, cell, hidden_size, num_layers, **kwargs):
+#         super(ZerosState, self).__init__(**kwargs)
+#         self.cell = cell
+#         self.hidden_size = hidden_size
+#         self.num_layers = num_layers
+    
+#     def forward(self, enc_output, batch_size, *args):
+#         if self.cell == 'GRU':
+#             # state shape: [num_layers, batch_size, hidden_size]
+#             return torch.zeros(self.num_layers, batch_size, self.hidden_size)
+
+#         elif self.cell == 'LSTM':
+#             # h shape: [num_layers, batch_size, hidden_size]
+#             h = torch.zeros(self.num_layers, batch_size, self.hidden_size)
+#             # c shape: [num_layers, batch_size, hidden_size]
+#             c = torch.zeros(self.num_layers, batch_size, self.hidden_size)
+#             return (h, c)
 
 
 class TrainableState(BaseState):
@@ -43,7 +50,7 @@ class TrainableState(BaseState):
         self.a = a
         self.b = b
     
-    def forward(self, batch_size, *args):
+    def forward(self, enc_output, batch_size, *args):
         if self.cell == 'GRU':
             # state shape: [num_layers, batch_size, hidden_size]
             h = nn.Parameter(torch.empty(self.num_layers, batch_size, self.hidden_size))

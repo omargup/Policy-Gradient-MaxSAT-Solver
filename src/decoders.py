@@ -59,8 +59,8 @@ class RNNDecoder(Decoder):
         #       ex.: [[[0], [0], [1]], [[1], [0], [1]]]
         # context shape: [batch_size, feature_size]
         # state: [num_layers, batch_size, hidden_size]
-        
-        var = self.variable_embedding(var).permute(1, 0, 2)
+        var = self.variable_embedding(var)
+        var = var.permute(1, 0, 2)
         # var shape: [seq_len, batch_size, features_size=var_embedding_size]
         a_prev = self.assignment_embedding(a_prev).permute(1, 0, 2)
         # a_prev shape: [seq_len, batch_size, feature_size=assig_embedding_size]

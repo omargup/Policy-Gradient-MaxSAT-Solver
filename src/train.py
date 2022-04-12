@@ -1,31 +1,26 @@
-#from generator import UniformCNFGenerator
-from src.utils import assignment_verifier
-import numpy as np
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.distributions as distributions
-#import torch.optim as optim
 
-from src.architectures import BasicRNN
+#from generator import UniformCNFGenerator
+from src.utils import assignment_verifier
+
+import numpy as np
 
 
-def train(accumulation_steps,
-          formula,
+def train(formula,
           num_variables,
           variables,
           num_episodes,
+          accumulation_steps,
           policy_network,
           optimizer,
           device,
           baseline = None,
-          input_seq = None,
-          context = None,
           entropy_weight = 0,
           clip_val = None,
           verbose = 1):
-    
     """ Train Enconder-Decoder policy"""
 
     # Initliaze parameters
@@ -55,22 +50,24 @@ def train(accumulation_steps,
             enc_output = policy_network.encoder(formula, num_variables, variables)
 
         # Initialize Decoder Variables 
-        var = policy_network.init_dec_var(enc_output, formula, num_variables, variables, device)
+        var = policy_network.init_dec_var(enc_output, formula, num_variables, variables)
         # ::var:: [batch_size, seq_len, feature_size]
 
         batch_size = var.shape[0]
 
         # Initialize action_prev at time t=0 with token 2.
         #   Token 0 is for assignment 0, token 1 for assignment 1
-        action_prev = torch.tensor([2] * batch_size, dtype=torch.long, device=device).reshape(-1,1,1)
+        action_prev = torch.tensor([2] * batch_size, dtype=torch.long).reshape(-1,1,1).to(device)
         # ::action_prev:: [batch_size, seq_len=1, feature_size=1]
 
         # Initialize Decoder Context
-        context = policy_network.init_dec_context(enc_output, formula, num_variables, variables, batch_size, device)
+        context = policy_network.init_dec_context(enc_output, formula, num_variables, variables, batch_size).to(device)
         # ::context:: [batch_size, feature_size]
 
         # Initialize Decoder state
-        state = policy_network.init_dec_state(enc_output)
+        state = policy_network.init_dec_state(enc_output, batch_size)
+        if state is not None:
+            state = state.to(device)
         # ::state:: [num_layers, batch_size=1, hidden_size]
         
         action_log_probs = []
@@ -82,9 +79,11 @@ def train(accumulation_steps,
 
         for t in range(num_variables):
             #TODO: send to device here.
+
+            var_t = var[:,t:t+1,:].to(device)
    
             # Action logits
-            action_logits, state= policy_network.decoder((var[:,t:t+1,:], action_prev, context), state)
+            action_logits, state= policy_network.decoder((var_t, action_prev, context), state)
 
             # Prob distribution over actions
             #action_softmax = F.softmax(action_logits, dim = -1)  
@@ -110,7 +109,8 @@ def train(accumulation_steps,
             #actions_logits.append(list(np.around(F.softmax(action_logits.detach(), -1).numpy().flatten(), 2)))  # for debugging
             entropy_list.append(entropy)
 
-            action_prev = action
+            action_prev = action.unsqueeze(dim=-1)
+            #::action_prev:: [batch_size, seq_len=1, feature_size=1]
     
         with torch.no_grad():
             # Compute num of sat clauses
@@ -124,7 +124,6 @@ def train(accumulation_steps,
                 #baseline_val = baseline(formula, torch.stack(action_logits_list)).detach()
                 baseline_val = baseline(formula, policy_network, num_variables).detach()
     
-
         #Get loss
         action_log_probs = torch.cat(action_log_probs)
         entropy_list = torch.tensor(entropy_list)
@@ -155,13 +154,11 @@ def train(accumulation_steps,
                 print('Episode [{}/{}], Mean Loss {:.4f},  Mean num sat {:.4f}' 
                         .format(episode, num_episodes, mean_loss, mean_num_sat))
             
-            if verbose == 1 and episode== num_episodes:
+            if verbose == 1 and episode == num_episodes:
                 print('Episode [{}/{}], Mean Loss {:.4f},  Mean num sat {:.4f}' 
                         .format(episode, num_episodes, mean_loss, mean_num_sat))
         
             mean_loss = 0
             mean_num_sat = 0
     
-    
-        
     return history_loss, history_num_sat
