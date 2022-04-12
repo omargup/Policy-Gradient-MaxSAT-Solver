@@ -119,7 +119,7 @@ def train(formula,
             is_sat, num_sat, _ = assignment_verifier(formula, actions)
             num_sat = torch.tensor(num_sat, dtype=float).detach()
 
-            #TODO: Check baseline
+            #TODO: Test baseline
             #Compute baseline
             baseline_val = torch.tensor(0, dtype=float)
             if baseline is not None:

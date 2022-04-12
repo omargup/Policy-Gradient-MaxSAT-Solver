@@ -27,10 +27,11 @@ class BaselineRollout(Baseline):
         else:
             raise TypeError("{} is not a valid number of rollouts, try with -1 for 'greedy' or 1, 2, 3, etc. for 'sampled'.".format(num_rollouts))
 
-    def forward(self, formula, policy_network, num_variables):
+    def forward(self, formula, num_variables, variables, policy_network, device):
         num_sats = []
         for i in range(self.num_rollouts):
-            assignment = utils.sampling_assignment(policy_network, num_variables, self.strategy)
+            assignment = utils.sampling_assignment(formula, num_variables, variables, policy_network,
+                                                    device, self.strategy)
             # ::assigment:: [seq_len]
             _, num_sat, _ = utils.assignment_verifier(formula, assignment=assignment)
             num_sats.append(num_sat)
