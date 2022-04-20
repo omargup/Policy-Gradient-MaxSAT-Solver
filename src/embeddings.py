@@ -8,6 +8,7 @@ class BaseEmbedding(nn.Module):
         super(BaseEmbedding, self).__init__(**kwargs)
     
     def forward(self, X, *args):
+        # X shape: [batch_size, seq_len, features_size]
         raise NotImplementedError
 
 

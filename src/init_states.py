@@ -8,15 +8,18 @@ class BaseState(nn.Module):
     def __init__(self, **kwargs):
         super(BaseState, self).__init__(**kwargs)
     
-    def forward(self, *args):
+    def forward(self, enc_output, batch_size, *args):
         raise NotImplementedError
+
 
 class ZerosState(BaseState):
     """ """
     def __init__(self, **kwargs):
         super(ZerosState, self).__init__(**kwargs)
     
-    def forward(self, *args):
+    def forward(self, enc_output, batch_size, *args):
+        # h_0 defaults to zeros with the proper shape if initial
+        # state is equeal to None
             return None
 
 # class ZerosState(BaseState):

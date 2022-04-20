@@ -47,40 +47,42 @@ class RNNDecoder(Decoder):
         else:
             raise TypeError("{} is not a valid cell, try with 'LSTM' or 'GRU'.".format(self.cell))
         # TODO: validate input size == variable_emb + assig_emb + context
+        # TODO: Projection or nn.Linear?
 
         # Output
         self.dense_out = nn.Linear(hidden_size, 2)
 
     def forward(self, X, state):
         var, a_prev, context = X
-        # var shape: [batch_size, seq_len, feature_size]
+        # ::var:: [batch_size, seq_len, feature_size]
         #       ex: [[[0], [1], [2]], [[0], [1], [2]]]
-        # a_prev shape: [batch_size, seq_len, feaure_size=1]
+        # ::a_prev:: [batch_size, seq_len, feaure_size=1]
         #       ex.: [[[0], [0], [1]], [[1], [0], [1]]]
-        # context shape: [batch_size, feature_size]
-        # state: [num_layers, batch_size, hidden_size]
+        # ::context:: [batch_size, feature_size]
+        # ::state:: [num_layers, batch_size, hidden_size]
         var = self.variable_embedding(var)
         var = var.permute(1, 0, 2)
-        # var shape: [seq_len, batch_size, features_size=var_embedding_size]
+        # ::var:: [seq_len, batch_size, features_size=var_embedding_size]
         a_prev = self.assignment_embedding(a_prev).permute(1, 0, 2)
-        # a_prev shape: [seq_len, batch_size, feature_size=assig_embedding_size]
+        # ::a_prev:: [seq_len, batch_size, feature_size=assig_embedding_size]
         # Broadcasting context
         context = context.repeat(var.shape[0], 1, 1)
-        # context shape: [seq_len, batch_size, features_size]
+        # ::context:: [seq_len, batch_size, features_size]
         dec_input = torch.cat((var, a_prev, context), -1)
-        # dec_input shape: [seq_len, batch_size, features_size=input_size]
+        # ::dec_input:: [seq_len, batch_size, features_size=input_size]
 
         output, state = self.rnn(dec_input, state)
-        # output shape: [seq_len, batch_size, hidden_size]
-        # state shape: [num_layers, batch_size, hidden_size]
+        # ::output:: [seq_len, batch_size, hidden_size]
+        # ::state:: [num_layers, batch_size, hidden_size]
 
         output = output.permute(1, 0, 2)
-        # output shape: [batch_size, seq_len, hidden_size]
+        # ::output:: [batch_size, seq_len, hidden_size]
 
         logits = self.dense_out(output)
-        # logits: [batch_size, seq_len, 2]
+        # ::logits:: [batch_size, seq_len, 2]
 
         # clipped logits
+        #TODO: Check c * tanh(logits)
         if self.c > 0:
             logits = self.c * F.tanh(logits)
 
