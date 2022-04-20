@@ -48,23 +48,30 @@ class TrainableState(BaseState):
     def __init__(self, cell, hidden_size, num_layers, a=-0.8, b=0.8, **kwargs):
         super(TrainableState, self).__init__(**kwargs)
         self.cell = cell
-        self.hidden_size = hidden_size
-        self.num_layers = num_layers
-        self.a = a
-        self.b = b
+
+        if cell == 'GRU':
+            # state shape: [num_layers, batch_size=1, hidden_size]
+            self.h = nn.Parameter(torch.empty(num_layers, 1, hidden_size))
+            nn.init.uniform_(self.h, a=a, b=b)
+            
+        
+        elif cell == 'LSTM':
+            # h shape: [num_layers, batch_size=1, hidden_size]
+            self.h = nn.Parameter(torch.empty(num_layers, 1, hidden_size))
+            # c shape: [num_layers, batch_size=1, hidden_size]
+            self.c = nn.Parameter(torch.empty(num_layers, 1, hidden_size))
+            nn.init.uniform_(self.h, a=a, b=b)
+            nn.init.uniform_(self.c, a=a, b=b)
     
     def forward(self, enc_output, batch_size, *args):
         if self.cell == 'GRU':
             # state shape: [num_layers, batch_size, hidden_size]
-            h = nn.Parameter(torch.empty(self.num_layers, batch_size, self.hidden_size))
-            return nn.init.uniform_(h, a=self.a, b=self.b)
+            return self.h.expand(self.h.shape[0], batch_size, self.h.shape[2])
 
         elif self.cell == 'LSTM':
             # h shape: [num_layers, batch_size, hidden_size]
-            h = nn.Parameter(torch.empty(self.num_layers, batch_size, self.hidden_size))
             # c shape: [num_layers, batch_size, hidden_size]
-            c = nn.Parameter(torch.empty(self.num_layers, batch_size, self.hidden_size))
-            return (nn.init.uniform_(h, a=self.a, b=self.b), nn.init.uniform_(c, a=self.a, b=self.b))
+            return (self.h.expand(self.h.shape[0], batch_size, self.h.shape[2]), self.c.expand(self.c.shape[0], batch_size, self.c.shape[2]))
 
 
 
