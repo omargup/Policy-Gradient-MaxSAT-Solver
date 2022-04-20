@@ -21,17 +21,19 @@ def train(formula,
           entropy_weight = 0,
           clip_val = None,
           verbose = 1):
-    """ Train Enconder-Decoder policy"""
+    """ Train Enconder-Decoder policy following Policy Gradient Theorem"""
 
     # Initliaze parameters
-    def xavier_init_weights(m):
-        if type(m) == nn.Linear:
-            nn.init.xavier_uniform_(m.weight)
-        if type(m) == nn.GRU or type(m) == nn.LSTM:
-            for param in m._flat_weights_names:
-                if "weight" in param:
-                    nn.init.xavier_uniform_(m._parameters[param])
-    policy_network.apply(xavier_init_weights)
+    #def xavier_init_weights(m):
+    #    if type(m) == nn.Linear:
+    #        nn.init.xavier_uniform_(m.weight)
+    #    if type(m) == nn.GRU or type(m) == nn.LSTM:
+    #        for param in m._flat_weights_names:
+    #            if "weight" in param:
+    #                nn.init.xavier_uniform_(m._parameters[param])
+    #policy_network.apply(xavier_init_weights)
+    #TODO: check TrainableState
+    #TODO: check initialize params
 
     policy_network.to(device)
     policy_network.train()
