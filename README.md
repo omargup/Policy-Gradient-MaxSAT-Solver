@@ -6,4 +6,4 @@
 
 ## Requirements
 
-You need PyMiniSolvers. [PyMiniSolvers](https://github.com/liffiton/PyMiniSolvers)
+You need [PyMiniSolvers](https://github.com/liffiton/PyMiniSolvers).
