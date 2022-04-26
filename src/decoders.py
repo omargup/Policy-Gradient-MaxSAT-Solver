@@ -15,7 +15,7 @@ class Decoder(nn.Module):
 
 class RNNDecoder(Decoder):
     """ """
-    def __init__(self, input_size, cell='GRU', assignment_emb=None, variable_emb=None,
+    def __init__(self, input_size, cell='GRU', assignment_emb=None, variable_emb=None, context_emb=None,
                     hidden_size=128, num_layers=1, dropout=0, clip_logits_c=0, **kwargs):
         super(RNNDecoder, self).__init__(**kwargs)
         self.cell = cell
@@ -39,6 +39,13 @@ class RNNDecoder(Decoder):
             if not issubclass(type(variable_emb), BaseEmbedding):
                 raise TypeError("variable_emb must inherit from BaseEmbedding.")
         
+        self.context_embedding = context_emb
+        if context_emb is None:
+            raise TypeError("A context_emb must be specified.")
+        if context_emb is not None:
+            if not issubclass(type(context_emb), BaseEmbedding):
+                raise TypeError("context_emb must inherit from BaseEmbedding.")
+        
         # RNN
         if self.cell == 'GRU':
             self.rnn = nn.GRU(input_size, hidden_size, num_layers, dropout=dropout)
@@ -60,11 +67,13 @@ class RNNDecoder(Decoder):
         #       ex.: [[[0], [0], [1]], [[1], [0], [1]]]
         # ::context:: [batch_size, feature_size]
         # ::state:: [num_layers, batch_size, hidden_size]
-        var = self.variable_embedding(var)
-        var = var.permute(1, 0, 2)
+        var = self.variable_embedding(var).permute(1, 0, 2)
         # ::var:: [seq_len, batch_size, features_size=var_embedding_size]
         a_prev = self.assignment_embedding(a_prev).permute(1, 0, 2)
         # ::a_prev:: [seq_len, batch_size, feature_size=assig_embedding_size]
+        context = self.context_embedding(context)
+        # ::context:: [batch_size, features_size=context_embedding_size]
+        
         # Broadcasting context
         context = context.repeat(var.shape[0], 1, 1)
         # ::context:: [seq_len, batch_size, features_size]
