@@ -40,7 +40,9 @@ class IdentityEmbedding(BaseEmbedding):
     def forward(self, X):
         # X shape: [batch_size, seq_len, features_size]
         if X.dim() != 3:
-            raise TypeError("X must be a tensor with shape [batch_size, seq_len, features_size].")
+            if X.dim() != 2: 
+                #TODO: valiedate input shape when context is empty
+                raise TypeError("X must be a tensor with shape [batch_size, seq_len, features_size].")
         return X
         # X shape: [batch_size, seq_len, features_size]
 
