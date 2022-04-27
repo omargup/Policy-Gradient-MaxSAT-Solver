@@ -3,6 +3,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from src.embeddings import BaseEmbedding
+from typing import List, Optional, Tuple, Union
+from utils import build_gcn_model
 
 class Encoder(nn.Module):
     """ """
@@ -45,3 +47,33 @@ class RNNEncoder(Encoder):
         # output shape: [seq_len, batch_size, hidden_size]
         # state shape: [num_layers, batch_size, hidden_size]
         return output, state
+
+class GCNEncoder(Encoder):
+    def __init__(self,
+        embedding_size: int,
+        hidden_sizes: List[int]=[16],
+        intermediate_fns: Optional[List[List[Union[nn.Module, None]]]]=[
+            [None],
+            [nn.ReLU(), nn.Dropout(p=0.2)], 
+            [nn.ReLU()]
+        ],
+        node_types: List[str] = ["literal", "clause"],
+        edge_types: List[Tuple[str, str, str]]=[
+            ("literal", "exists_in", "clause"),
+            ("clause", "contains", "literal"),
+        ],
+        **kwargs
+    ):
+
+        super(GCNEncoder, self).__init__(**kwargs)
+
+        self.module_ = build_gcn_model(
+            embedding_size,
+            hidden_sizes=hidden_sizes,
+            intermediate_fns=intermediate_fns,
+            node_types=node_types,
+            edge_types=edge_types
+        )
+
+    def forward(self, x, edge_index):    
+        return self.module_(x, edge_index)
