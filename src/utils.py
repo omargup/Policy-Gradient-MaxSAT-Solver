@@ -2,6 +2,12 @@ import torch
 import torch.distributions as distributions
 import numpy as np
 
+def params_summary(model):
+    for name, param in model.named_parameters():
+        if param.requires_grad:
+            print(name, param.shape)
+
+
 def assignment_verifier(formula, assignment):
     '''Checks whether an assignment satisfies a CNF formula.
         Args:

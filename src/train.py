@@ -3,7 +3,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.distributions as distributions
 
-#from generator import UniformCNFGenerator
 from src.utils import assignment_verifier
 
 import numpy as np
@@ -21,17 +20,19 @@ def train(formula,
           entropy_weight = 0,
           clip_val = None,
           verbose = 1):
-    """ Train Enconder-Decoder policy"""
+    """ Train Enconder-Decoder policy following Policy Gradient Theorem"""
 
     # Initliaze parameters
-    def xavier_init_weights(m):
-        if type(m) == nn.Linear:
-            nn.init.xavier_uniform_(m.weight)
-        if type(m) == nn.GRU or type(m) == nn.LSTM:
-            for param in m._flat_weights_names:
-                if "weight" in param:
-                    nn.init.xavier_uniform_(m._parameters[param])
-    policy_network.apply(xavier_init_weights)
+    #def xavier_init_weights(m):
+    #    if type(m) == nn.Linear:
+    #        nn.init.xavier_uniform_(m.weight)
+    #    if type(m) == nn.GRU or type(m) == nn.LSTM:
+    #        for param in m._flat_weights_names:
+    #            if "weight" in param:
+    #                nn.init.xavier_uniform_(m._parameters[param])
+    #policy_network.apply(xavier_init_weights)
+    #TODO: check TrainableState
+    #TODO: check initialize params
 
     policy_network.to(device)
     policy_network.train()
@@ -72,18 +73,15 @@ def train(formula,
         
         action_log_probs = []
         actions = []
-        action_logits_list = []  # useful for baseline
         actions_logits = []  # for debugging
         entropy_list = []
         
 
         for t in range(num_variables):
-            #TODO: send to device here.
-
             var_t = var[:,t:t+1,:].to(device)
    
             # Action logits
-            action_logits, state= policy_network.decoder((var_t, action_prev, context), state)
+            action_logits, state = policy_network.decoder((var_t, action_prev, context), state)
             # ::action_logits:: [batch_size=1, seq_len=1, feature_size=2]
 
             # Prob distribution over actions
@@ -105,7 +103,6 @@ def train(formula,
             # Store actions and action_log_prob
             action_log_probs.append(action_log_prob)
             actions.append(action.item())
-            action_logits_list.append(action_logits)
             actions_logits.append(list(np.around(action_logits.detach().numpy().flatten(), 2)))  # for debugging
             #actions_logits.append(list(np.around(F.softmax(action_logits.detach(), -1).numpy().flatten(), 2)))  # for debugging
             entropy_list.append(entropy)

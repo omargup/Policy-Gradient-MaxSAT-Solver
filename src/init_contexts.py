@@ -8,7 +8,7 @@ class BaseContext(nn.Module):
     def __init__(self, **kwargs):
         super(BaseContext, self).__init__(**kwargs)
 
-    def forward(self, *args):
+    def forward(self, enc_output, formula, num_variables, variables, batch_size, *args):
         raise NotImplementedError
 
 

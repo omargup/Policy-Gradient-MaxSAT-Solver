@@ -40,40 +40,10 @@ class RNNEncoder(Encoder):
     def forward(self, formula, *args):
         # ::formula:: [batch_size, seq_len, features_size]
         X = self.embedding(formula)
-        # X shape: [batch_size, seq_len, embedding_size]
+        # ::X:: [batch_size, seq_len, embedding_size]
         X = X.permute(1, 0, 2)
-        # X shape: [seq_len, batch_size, embedding_size]
+        # ::X:: [seq_len, batch_size, embedding_size]
         output, state = self.rnn(X)  # Initial state is zeros
-        # output shape: [seq_len, batch_size, hidden_size]
-        # state shape: [num_layers, batch_size, hidden_size]
+        # ::output:: [seq_len, batch_size, hidden_size]
+        # ::state:: [num_layers, batch_size, hidden_size]
         return output, state
-
-class GCNEncoder(Encoder):
-    def __init__(self,
-        embedding_size: int,
-        hidden_sizes: List[int]=[16],
-        intermediate_fns: Optional[List[List[Union[nn.Module, None]]]]=[
-            [None],
-            [nn.ReLU(), nn.Dropout(p=0.2)], 
-            [nn.ReLU()]
-        ],
-        node_types: List[str] = ["literal", "clause"],
-        edge_types: List[Tuple[str, str, str]]=[
-            ("literal", "exists_in", "clause"),
-            ("clause", "contains", "literal"),
-        ],
-        **kwargs
-    ):
-
-        super(GCNEncoder, self).__init__(**kwargs)
-
-        self.module_ = build_gcn_model(
-            embedding_size,
-            hidden_sizes=hidden_sizes,
-            intermediate_fns=intermediate_fns,
-            node_types=node_types,
-            edge_types=edge_types
-        )
-
-    def forward(self, x, edge_index):    
-        return self.module_(x, edge_index)

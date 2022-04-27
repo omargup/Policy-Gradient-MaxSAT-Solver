@@ -15,7 +15,7 @@ class EncoderDecoder(nn.Module):
     ----------
     encoder : Encoder type. If None (default), no encoder is used.
     decoder :  Decoder type.
-    init_dec_var : BaseVar type. Is None (default), BasicVar is used.
+    init_dec_var : BaseVar type. If None (default), BasicVar is used.
     init_dec_context : BaseContext type. If None (default), EmptyContext is used.
     init_dec_state : BaseState type. If None (default), ZerosState is used.
     """
