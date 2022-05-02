@@ -4,7 +4,8 @@ import torch.nn.functional as F
 
 from src.embeddings import BaseEmbedding
 from typing import List, Optional, Tuple, Union
-from utils import build_gcn_model
+from src.utils import build_gcn_model
+from torch_geometric.data import HeteroData
 
 class Encoder(nn.Module):
     """ """
@@ -47,3 +48,56 @@ class RNNEncoder(Encoder):
         # ::output:: [seq_len, batch_size, hidden_size]
         # ::state:: [num_layers, batch_size, hidden_size]
         return output, state
+
+class GCNEncoder(Encoder):
+    def __init__(self,
+        embedding_size: int,
+        hidden_sizes: List[int]=[16],
+        intermediate_fns: Optional[List[List[Union[nn.Module, None]]]]=[
+            [None],
+            [nn.ReLU(), nn.Dropout(p=0.2)], 
+            [nn.ReLU()]
+        ],
+        device="cpu",
+        **kwargs
+    ):
+
+        super(GCNEncoder, self).__init__(**kwargs)
+
+        self.device = device
+
+        self.module_ = build_gcn_model(
+            embedding_size,
+            hidden_sizes=hidden_sizes,
+            intermediate_fns=intermediate_fns,
+        )
+
+    # def forward(self, x, edge_index):    
+    def forward(self, formula, num_variables, variables):
+        #print("Formula", formula)
+        #print("Num variables", num_variables)
+        #print("Variables", variables)
+
+        # literals shape: [1, num_variables]
+        # literals = F.one_hot(torch.arange(num_variables).unsqueeze(0), num_variables)
+        literals = torch.eye(num_variables, dtype=torch.float)
+        clauses = torch.tensor(formula, dtype=torch.float)
+
+        edges = []
+
+        for clause_idx, clause in enumerate(formula):
+            for literal in clause:
+                edges.append([abs(literal) - 1, clause_idx])
+
+        edges = torch.tensor(edges, dtype=torch.long)
+
+        data = HeteroData()
+        data["literal"].x = literals.to(self.device)
+        data["clause"].x = clauses.to(self.device)
+
+        data["literal", "exists_in", "clause"].edge_index = torch.clone(edges).T.contiguous().to(self.device)
+        data["clause", "contains", "literal"].edge_index = torch.clone(edges[:, [1, 0]]).T.contiguous().to(self.device)
+
+        out = self.module_(data.x_dict, data.edge_index_dict)
+
+        return out["literal"].unsqueeze(0)
