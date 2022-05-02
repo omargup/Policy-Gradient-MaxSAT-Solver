@@ -76,7 +76,7 @@ def dimacs2list(dimacs_path):
 
 
 def greedy_strategy(action_logits):
-    action = np.argmax(action_logits, axis=-1)
+    action = torch.argmax(action_logits, dim=-1)
     return action
 
 def sampled_strategy(action_logits):
