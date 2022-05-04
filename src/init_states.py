@@ -115,3 +115,32 @@ class TrainableState(BaseState):
 #             # c shape: [num_layers, batch_size, hidden_size]
 #             c = nn.Parameter(torch.empty(self.num_layers, self.batch_size, self.hidden_size))
 #             return (nn.init.uniform_(h, a=self.a, b=self.b), nn.init.uniform_(c, a=self.a, b=self.b))
+
+class EncoderOutputState(BaseState):
+    """ Returns an empty context."""
+    def __init__(self, input_size, output_size, num_layers, aggregation="mean", **kwargs):
+        super(EncoderOutputState, self).__init__(**kwargs)
+        if aggregation not in ["mean", "sum", "max", "min"]:
+            raise ValueError("Supported aggregations are 'mean', 'sum', 'max' or 'min'")
+        self.aggregation=aggregation
+        self.mapping_dims = nn.Linear(input_size, output_size)
+        self.num_layers = num_layers
+
+    def forward(self, enc_output, batch_size, *args):
+        if self.aggregation == "mean":
+            out = enc_output.mean(dim=-2)
+        elif self.aggregation == "sum":
+            out = enc_output.sum(dim=-2)
+        elif self.aggregation == "max":
+            out = enc_output.max(dim=-2)[0]
+        elif self.aggregation == "min":
+            out = enc_output.min(dim=-2)[0]
+        else:
+            raise ValueError(f"Aggregation '{self.aggregation}' not supported")
+
+        # h shape: [num_layers, batch_size, hidden_size]
+        out = self.mapping_dims(out)
+        return out.repeat(self.num_layers, 1, 1)
+        
+        
+    

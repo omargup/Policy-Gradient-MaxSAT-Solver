@@ -103,7 +103,7 @@ def train(formula,
             # Store actions and action_log_prob
             action_log_probs.append(action_log_prob)
             actions.append(action.item())
-            actions_logits.append(list(np.around(action_logits.detach().numpy().flatten(), 2)))  # for debugging
+            actions_logits.append(list(np.around(action_logits.detach().cpu().numpy().flatten(), 2)))  # for debugging
             #actions_logits.append(list(np.around(F.softmax(action_logits.detach(), -1).numpy().flatten(), 2)))  # for debugging
             entropy_list.append(entropy)
 

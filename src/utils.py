@@ -76,7 +76,7 @@ def dimacs2list(dimacs_path):
 
 
 def greedy_strategy(action_logits):
-    action = np.argmax(action_logits, axis=-1)
+    action = torch.argmax(action_logits, dim=-1)
     return action
 
 def sampled_strategy(action_logits):
@@ -138,3 +138,82 @@ def sampling_assignment(formula, num_variables, variables, policy_network,
         #::action_prev:: [batch_size, seq_len=1, feature_size=1]
         
     return actions
+
+###################################################
+# Neural network utils
+###################################################
+
+import torch.nn as nn
+import torch_geometric.nn as gnn
+from typing import List, Optional, Tuple, Union
+
+def build_gcn_sequential_model(
+    embedding_size: int,
+    hidden_sizes: List[int]=[16],
+    intermediate_fns: Optional[List[List[Union[nn.Module, None]]]]=[
+        [None],
+        [nn.ReLU(), nn.Dropout(p=0.2)], 
+        [nn.ReLU()]
+    ]
+
+):
+
+    net_sizes = [None] + hidden_sizes + [embedding_size]
+
+    if intermediate_fns is not None:
+        if len(net_sizes) != len(intermediate_fns):
+            raise ValueError(f"intermediate_fns must had size {len(net_sizes)}. Got {len(intermediate_fns)}")
+    else:
+        intermediate_fns = [None] * len(net_sizes)
+
+
+    sequence = []
+
+    for search_idx in range(len(net_sizes) - 1):
+        
+        if intermediate_fns is not None and len(intermediate_fns) > search_idx and  intermediate_fns[search_idx] is not None:
+            for intermediate_fn in intermediate_fns[search_idx]:
+                if intermediate_fn is not None:
+                    sequence.append(
+                        (intermediate_fn, "x -> x")
+                    )
+                    
+        
+        sequence.append(
+            (gnn.SAGEConv((-1, -1), net_sizes[search_idx + 1]), "x, edge_index -> x")
+        )
+
+    if intermediate_fns[-1] is not None:
+        for intermediate_fn in intermediate_fns[-1]:
+            if intermediate_fn is not None:
+                sequence.append(
+                    (intermediate_fn, "x -> x")
+                )
+
+    return gnn.Sequential("x, edge_index", sequence)
+
+
+def build_gcn_model(
+    embedding_size: int,
+    hidden_sizes: List[int]=[16],
+    intermediate_fns: Optional[List[List[Union[nn.Module, None]]]]=[
+        [None],
+        [nn.ReLU(), nn.Dropout(p=0.2)], 
+        [nn.ReLU()]
+    ],
+    node_types: List[str] = ["variable", "clause"],
+    edge_types: List[Tuple[str, str, str]]=[
+        ("variable", "exists_in", "clause"),
+        ("clause", "contains", "variable"),
+    ]
+):
+
+    metadata = (node_types, edge_types)
+    model = build_gcn_sequential_model(
+        embedding_size,
+        hidden_sizes,
+        intermediate_fns
+    )
+    model = gnn.to_hetero(model, metadata)
+
+    return model

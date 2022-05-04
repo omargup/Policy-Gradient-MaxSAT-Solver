@@ -21,4 +21,25 @@ class EmptyContext(BaseContext):
         return torch.empty([batch_size, 0])
         # ::context:: [batch_size, feature_size=0]
         
+class EncoderOutputContext(BaseContext):
+    """ Returns an empty context."""
+    def __init__(self, aggregation="mean", **kwargs):
+        super(EncoderOutputContext, self).__init__(**kwargs)
+        if aggregation not in ["mean", "sum", "max", "min"]:
+            raise ValueError("Supported aggregations are 'mean', 'sum', 'max' or 'min'")
+        self.aggregation=aggregation
+
+    def forward(self, enc_output, formula, num_variables, variables, batch_size, *args):
+        if self.aggregation == "mean":
+            return enc_output.mean(dim=-2)
+        elif self.aggregation == "sum":
+            return enc_output.sum(dim=-2)
+        elif self.aggregation == "max":
+            return enc_output.max(dim=-2)[0]
+        elif self.aggregation == "min":
+            return enc_output.min(dim=-2)[0]
+        else:
+            raise ValueError(f"Aggregation '{self.aggregation}' not supported")
+        # ::context:: [batch_size, feature_size=0]
+        
     
