@@ -92,12 +92,12 @@ class GCNEncoder(Encoder):
         edges = torch.tensor(edges, dtype=torch.long)
 
         data = HeteroData()
-        data["literal"].x = literals.to(self.device)
+        data["variable"].x = literals.to(self.device)
         data["clause"].x = clauses.to(self.device)
 
-        data["literal", "exists_in", "clause"].edge_index = torch.clone(edges).T.contiguous().to(self.device)
-        data["clause", "contains", "literal"].edge_index = torch.clone(edges[:, [1, 0]]).T.contiguous().to(self.device)
+        data["variable", "exists_in", "clause"].edge_index = torch.clone(edges).T.contiguous().to(self.device)
+        data["clause", "contains", "variable"].edge_index = torch.clone(edges[:, [1, 0]]).T.contiguous().to(self.device)
 
         out = self.module_(data.x_dict, data.edge_index_dict)
 
-        return out["literal"].unsqueeze(0)
+        return out["variable"].unsqueeze(0)

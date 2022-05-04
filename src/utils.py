@@ -201,10 +201,10 @@ def build_gcn_model(
         [nn.ReLU(), nn.Dropout(p=0.2)], 
         [nn.ReLU()]
     ],
-    node_types: List[str] = ["literal", "clause"],
+    node_types: List[str] = ["variable", "clause"],
     edge_types: List[Tuple[str, str, str]]=[
-        ("literal", "exists_in", "clause"),
-        ("clause", "contains", "literal"),
+        ("variable", "exists_in", "clause"),
+        ("clause", "contains", "variable"),
     ]
 ):
 
