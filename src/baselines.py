@@ -38,3 +38,16 @@ class BaselineRollout(Baseline):
         baseline = torch.tensor(num_sat, dtype=float).mean()
 
         return baseline
+
+
+
+# class BaselineNet(Baseline):
+#     """ """
+#     def __init__(self, hidden_size  **kwargs):
+#         super().__init__(**kwargs)
+#         # Output
+#         self.baseline = nn.Linear(hidden_size, 1)
+
+#     def forward(self, formula, num_variables, variables, policy_network, device, dec_state):
+
+#         return self.baseline(dec_state)

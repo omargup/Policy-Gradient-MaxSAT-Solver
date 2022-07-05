@@ -50,7 +50,9 @@ def forward_episode(formula,
     actions = []
     action_log_probs = []
     entropies = []
-    
+
+
+
     for t in range(num_variables):
         var_t = var[:,t:t+1,:].to(device)
 

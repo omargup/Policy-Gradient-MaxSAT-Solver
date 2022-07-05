@@ -96,3 +96,111 @@ class RNNDecoder(Decoder):
             logits = self.c * F.tanh(logits)
 
         return logits, state
+
+
+
+
+class PositionalEncoding(nn.Module):
+
+    def __init__(self, d_model, dropout=0.1, max_len=5000):
+        super(PositionalEncoding, self).__init__()
+        self.dropout = nn.Dropout(p=dropout)
+
+        pe = torch.zeros(max_len, d_model)
+        position = torch.arange(0, max_len, dtype=torch.float).unsqueeze(1)
+        div_term = torch.exp(torch.arange(0, d_model, 2).float() * (-math.log(10000.0) / d_model))
+        pe[:, 0::2] = torch.sin(position * div_term)
+        pe[:, 1::2] = torch.cos(position * div_term)
+        pe = pe.unsqueeze(0).transpose(0, 1)
+        self.register_buffer('pe', pe)
+
+    def forward(self, x):
+        x = x + self.pe[:x.size(0), :]
+        return self.dropout(x)
+
+        
+
+class TransformerDecoder(nn.Module):
+    def __init__(self,
+                 src_vocab_size: int,
+                 trg_vocab_size: int,
+                 d_model: int,
+                 num_heads: int,
+                 num_enc_layers: int,
+                 num_dec_layers: int,
+                 ffn_size: int,
+                 dropout: float,
+                 activation: str):
+        
+        super().__init__()
+        
+        self.d_model = d_model
+
+        #Embeddings
+        self.enc_embedding = nn.Embedding(num_embeddings = src_vocab_size, 
+                                          embedding_dim = d_model)
+        self.dec_embedding = nn.Embedding(num_embeddings = trg_vocab_size,
+                                          embedding_dim = d_model)
+
+        
+        #Positional encoder
+        self.pos_encoder = PositionalEncoding(d_model, dropout)
+        
+        #Custom encoder
+        #encoder_layer = TransformerEncoderLayer(d_model, num_heads, ffn_size, dropout, activation)
+        #encoder_norm = nn.LayerNorm(d_model)
+        #self.encoder = TransformerEncoder(encoder_layer, num_enc_layers, encoder_norm)
+        
+        #Custom decoder
+        #decoder_layer = TransformerDecoderLayer(d_model, num_heads, ffn_size, dropout, activation)
+        #decoder_norm = nn.LayerNorm(d_model)
+        #self.decoder = TransformerDecoder(decoder_layer, num_dec_layers, decoder_norm)
+        
+        #Transformer
+        self.transformer = nn.Transformer(d_model = d_model, 
+                                          nhead = num_heads,
+                                          num_encoder_layers = num_enc_layers,
+                                          num_decoder_layers = num_dec_layers,
+                                          dim_feedforward = ffn_size,
+                                          dropout = dropout,
+                                          activation = activation,
+                                          custom_encoder = None, #self.encoder,
+                                          custom_decoder = None) #self.decoder)
+        
+        #Linear layer
+        self.fc = nn.Linear(d_model, trg_vocab_size)
+        
+        #Initialize weights
+        self.init_weights()
+    
+
+    def generate_square_subsequent_mask(self, sz):
+        mask = (torch.triu(torch.ones(sz, sz)) == 1).transpose(0, 1)
+        mask = mask.float().masked_fill(mask == 0, float('-inf')).masked_fill(mask == 1, float(0.0))
+        return mask
+
+
+    def init_weights(self):
+        for p in self.parameters():
+            if p.dim() > 1:
+                nn.init.xavier_uniform_(p, gain=1.0)
+        
+        nn.init.normal_(self.enc_embedding.weight, mean=0.0, std=1.0)
+        nn.init.normal_(self.dec_embedding.weight, mean=0.0, std=1.0)
+
+        
+    def forward(self, src: torch.tensor, trg: torch.tensor):
+        trg_mask = self.generate_square_subsequent_mask(len(trg)).to(device)
+
+        src = self.enc_embedding(src) * math.sqrt(self.d_model)
+        src = self.pos_encoder(src)
+
+        trg = self.dec_embedding(trg) * math.sqrt(self.d_model)
+        trg = self.pos_encoder(trg)
+
+        output = self.transformer(src, trg, tgt_mask = trg_mask)
+        #>>output: [trg_len, batch_size, d_model]
+        output = self.fc(output)
+        #>>output: [trg_len, batch_size, trg_vocab_size]
+
+        return output

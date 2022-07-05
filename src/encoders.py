@@ -49,6 +49,7 @@ class RNNEncoder(Encoder):
         # ::state:: [num_layers, batch_size, hidden_size]
         return output, state
 
+
 class GCNEncoder(Encoder):
     def __init__(self,
         embedding_size: int,
@@ -101,3 +102,7 @@ class GCNEncoder(Encoder):
         out = self.module_(data.x_dict, data.edge_index_dict)
 
         return out["variable"].unsqueeze(0)
+
+
+
+
