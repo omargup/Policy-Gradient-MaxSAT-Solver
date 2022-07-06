@@ -13,19 +13,22 @@ def probs2plot(log_dir, img_path):
     reader = SummaryReader(log_dir, pivot=False)  # extra_columns={'dir_name'}
     df = reader.tensors
 
+    # Keep only rows with tag == 'prob_1'
+    df = df[df['tag'] == 'prob_1']
+    # Keep only step and value columns
+    df = df[['step', 'value']]
+
+    # Get stats
     min_step = df['step'].min()
     max_step = df['step'].max()
     num_episodes = df['step'].nunique()
+    num_variables = df[df['step'] == min_step].shape[0]
 
-    df2 = df[df['step'] == min_step]
-    df2 = df2[df2['tag'] == 'prob_1']
-    num_variables = df2.shape[0]
-
-    # Keep only rows with tag == 'prob_1'
-    df = df[df['tag'] == 'prob_1']
-
-    # Keep only step and value columns
-    df = df[['step', 'value']]
+    # For debugging
+    #print(min_step)
+    #print(max_step)
+    #print(num_episodes)
+    #print(num_variables)
 
     df.rename(columns = {'step': 'Episode'}, inplace = True)
 

@@ -121,7 +121,7 @@ def learning_solver(config, checkpoint_dir=None, data_dir=None):
                                                             config['clip_grad'],
                                                             config['verbose'],
                                                             config['raytune'],
-                                                            config['episode_logs'],
-                                                            config['logs_steps'])
+                                                            config['episode_log'],
+                                                            config['log_step'])
     
     return history_loss, history_num_sat, hitosry_num_sat_val

@@ -10,6 +10,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 import numpy as np
 from ray import tune
+import time
 import os
 
 def forward_episode(formula,
@@ -134,9 +135,21 @@ def train(formula,
           clip_grad = None,
           verbose = 1,
           raytune = False,
-          episode_logs = None,
-          logs_steps = 1):
-    """ Train Enconder-Decoder policy following Policy Gradient Theorem"""
+          episode_log = False,
+          log_step = 1):
+    """ Train Enconder-Decoder policy following Policy Gradient Theorem
+    
+    PARAMETERS
+    ----------
+
+    episode_log : bool. Enable logging TensorBoard files (loss, num_sat, prob_0 and prob_1).
+                    Default False.
+    log_step : int. If episode_log is True, log info every log_step steps. Default 1.
+
+    logs_dir : str. Directory where tensorboard logs are saved. If None (default), logs are saved
+                    as './outputs/logs/run' + time of the system.
+    """
+
 
     # Initliaze parameters
     #def xavier_init_weights(m):
@@ -150,10 +163,16 @@ def train(formula,
     #TODO: check TrainableState
     #TODO: check initialize params
 
-    if episode_logs is not None:
-    #log_dir = './outputs/' + experiment_name + '/runs/n' + str(num_variables) +'/'+str(r)
-        log_dir = './outputs/' + 'exp_1'
-        writer = SummaryWriter(log_dir = log_dir)
+     #TODO: clean paths with os and opts.
+    output_dir = 'outputs'
+    log_dir = 'logs'
+    run_name = "{}_{}".format('run', time.strftime("%Y%m%dT%H%M%S"))
+
+    
+    if episode_log:
+        #log_dir = './outputs/' + experiment_name + '/runs/n' + str(num_variables) +'/'+str(r)
+        #log_dir = './outputs/' + runname
+        writer = SummaryWriter(log_dir = os.path.join(log_dir, run_name))
 
   
     policy_network.to(device)
@@ -199,18 +218,13 @@ def train(formula,
         mean_loss += loss.item()
         mean_num_sat += (episode_stats['num_sat'] / accumulation_steps)
 
-        if (episode_logs == 'loss_and_sat') and ((episode % logs_steps) == 0):
+        if episode_log and ((episode % log_step) == 0):
             writer.add_scalar('loss', episode_stats['loss'], episode, new_style=True)
             writer.add_scalar('num_sat', episode_stats['num_sat'], episode, new_style=True)
-
-        if (episode_logs == 'probs') and ((episode % logs_steps) == 0):
+            
             for (prob_0, prob_1) in episode_stats['probs']:
-                #print(prob_0, prob_1)
                 writer.add_scalar('prob_0', prob_0, episode, new_style=True)
                 writer.add_scalar('prob_1', prob_1, episode, new_style=True)
-
-
-
 
 
         if (episode % accumulation_steps) == 0:
@@ -254,7 +268,7 @@ def train(formula,
             mean_loss = 0
             mean_num_sat = 0
     
-    if episode_logs is not None:
+    if episode_log:
         writer.close()
     
     return history_loss, history_num_sat, hitosry_num_sat_val
