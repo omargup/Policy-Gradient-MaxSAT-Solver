@@ -1,6 +1,58 @@
 import torch
 import torch.distributions as distributions
 import numpy as np
+from tbparse import SummaryReader
+import seaborn as sns; sns.set_theme()
+import pandas as pd
+import matplotlib.pyplot as plt
+
+
+#sns.choose_diverging_palette(as_cmap=False)
+def probs2plot(log_dir, img_path):
+    # Read tensorboard logs with tbparser
+    reader = SummaryReader(log_dir, pivot=False)  # extra_columns={'dir_name'}
+    df = reader.tensors
+
+    min_step = df['step'].min()
+    max_step = df['step'].max()
+    num_episodes = df['step'].nunique()
+
+    df2 = df[df['step'] == min_step]
+    df2 = df2[df2['tag'] == 'prob_1']
+    num_variables = df2.shape[0]
+
+    # Keep only rows with tag == 'prob_1'
+    df = df[df['tag'] == 'prob_1']
+
+    # Keep only step and value columns
+    df = df[['step', 'value']]
+
+    df.rename(columns = {'step': 'Episode'}, inplace = True)
+
+    # Add an extra column with variable indices
+    variables = []
+    for _ in range(num_episodes):
+        for i in range(num_variables):
+            variables.append(i)
+    df['Variable'] = variables
+
+    # Reshape dataframe
+    table = pd.pivot_table(df, index='Variable', columns='Episode', values='value')
+
+    #colormap = sns.color_palette("coolwarm", as_cmap=True)
+    colormap = sns.diverging_palette(259, 359, s=90, l=60, sep=5, as_cmap=True) 
+    plt.figure(figsize = (20,8))
+    ax = sns.heatmap(table, vmin=0, vmax=1, square=True,  xticklabels=5,
+                    linewidths=0.0, cmap=colormap, cbar=True, cbar_kws={"shrink": .835, 'pad':0.02})
+        #for i in range(0, 102 ,2):
+        #    ax.axvline(i, color='white', lw=5)
+
+    #ax.set(title='Variables assignments through episodes')
+    #ax.set_xticklabels([i for i in range(100, 5000+1, 500)])
+    plt.tight_layout()
+    plt.savefig(img_path)
+    plt.show()
+    
 
 def params_summary(model):
     for name, param in model.named_parameters():
