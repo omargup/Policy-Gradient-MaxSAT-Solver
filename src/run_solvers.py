@@ -23,8 +23,8 @@ def random_solver(n, formula):
     # Create a random assignment
     assignment = utils.random_assignment(n=n)
     # Verifying the number of satisfied clauses
-    is_sat, num_sat, eval_formula = utils.assignment_verifier(formula, assignment)
-    return num_sat
+    is_sat, num_sat, eval_formula = utils.num_sat_clauses(formula, assignment)
+    return assignment, num_sat
 
 
 def minisat_solver(n, formula):
@@ -33,11 +33,13 @@ def minisat_solver(n, formula):
         S.new_var()
     for clause in formula:
         S.add_clause(clause)
-    num_sat = 0
-    if S.solve():
+    assignment = None
+    is_sat = S.solve()
+    if is_sat:
         assignment = list(S.get_model())
-        is_sat, num_sat, eval_formula = utils.assignment_verifier(formula, assignment)
-    return num_sat
+        #is_sat, num_sat, eval_formula = utils.num_sat_clauses(formula, assignment)
+    
+    return assignment, is_sat
         
 
 def learning_solver(config, checkpoint_dir=None, data_dir=None):
@@ -108,20 +110,25 @@ def learning_solver(config, checkpoint_dir=None, data_dir=None):
     if config['baseline'] is not None:
         baseline = BaselineRollout(config['baseline'])
 
-    history_loss, history_num_sat, hitosry_num_sat_val = train(formula,
-                                                            num_variables,
-                                                            variables,
-                                                            config['num_episodes'],
-                                                            config['accumulation_steps'],
-                                                            policy_network,
-                                                            optimizer,
-                                                            device,
-                                                            baseline,
-                                                            config['entropy_weight'],
-                                                            config['clip_grad'],
-                                                            config['verbose'],
-                                                            config['raytune'],
-                                                            config['episode_log'],
-                                                            config['log_step'])
-    
-    return history_loss, history_num_sat, hitosry_num_sat_val
+    train(formula,
+        num_variables,
+        variables,
+        config['num_episodes'],
+        config['accumulation_steps'],
+        policy_network,
+        optimizer,
+        device,
+        'sampled',
+        config['batch_size'],
+        config['permute_vars'],
+        config['permute_seed'],
+        baseline,
+        config['entropy_weight'],
+        config['clip_grad'],
+        config['verbose'],
+        config['raytune'],
+        config['episode_log'],
+        config['episode_log_step'],
+        config['optimizer_log'],
+        config['optimizer_log_step'],
+        config['experiment_name'])
