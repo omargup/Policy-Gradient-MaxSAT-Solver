@@ -63,19 +63,48 @@ def params_summary(model):
             print(name, param.shape)
 
 
-def assignment_verifier(formula, assignment):
-    '''Checks whether an assignment satisfies a CNF formula.
-        Args:
+def mean_sat_clauses(formula, assignment):
+    '''Computes the number of clauses that an assigment satiesfies.
+        The formula must be in CNF format and the assignment is a torch
+        tensor with shape [batch_size, num_variables]. If batch_size > 1
+        then returns the mean of the number that each assignment of the
+        batch satifies.
+        Arguments
+        ---------
             formula (list): CNF formula to be satisfied.
-            assignment (list): Assignment to be verified.
-                               Must be a list of 1s and 0s.
-        Returns:
+            assignment (tensor): Assignment to be verified. Must be a torch tensor
+                with shape [batch_size, num_variables]; e.g.: [[0,1,1], [1,0,1]].
+        Returns
+        -------
+            num_sat (int): Average number of satisfied clauses.
+    '''
+    if not type(assignment) == torch.tensor:
+        assert TypeError("'assignment' must be a tensor with shape [batch_size, num_variables]")
+
+    batch_size = assignment.shape[0]
+    total_num_sat = 0
+    for b in range(batch_size):
+        _, num_sat, _ = num_sat_clauses(formula, assignment[b])
+        total_num_sat += num_sat
+    return torch.tensor(total_num_sat/float(batch_size), dtype=float)
+
+
+def num_sat_clauses(formula, assignment):
+    '''Checks the number of clauses of a CNF formula that an assignment satisfies.
+        Arguments
+        ---------
+            formula (list): CNF formula to be satisfied.
+            assignment (list ): Assignment to be verified.
+                         Must be a list of 1s and 0s.
+        Returns
+        -------
             is_sat (bool): True if assigment satisfies the
                            formula.
             num_sat (int): Number of satisfied clauses.
             eval_formula (list): List of 1s and 0s indicating
                                  which clauses were satisfied.
     '''
+    # TODO: Verify len(list) == num_variables in formula
     eval_formula = []
     for clause in formula:
         eval_clause = []
@@ -136,19 +165,24 @@ def greedy_strategy(action_logits):
 
 def sampled_strategy(action_logits):
     action_dist = distributions.Categorical(logits= action_logits)
-    #print(torch.nn.functional.softmax(action_logits, -1))  # for debugging
     action = action_dist.sample()
     return action
 
-def sampling_assignment(formula, num_variables, variables, policy_network,
-                        device, strategy):
+def sampling_assignment(formula,
+                        num_variables,
+                        variables,
+                        policy_network,
+                        device,
+                        strategy,
+                        batch_size = 1,
+                        permute_vars = False):
     # Encoder
     enc_output = None
     if policy_network.encoder is not None:
         enc_output = policy_network.encoder(formula, num_variables, variables)
 
     # Initialize Decoder Variables 
-    var = policy_network.init_dec_var(enc_output, formula, num_variables, variables)
+    var = policy_network.init_dec_var(enc_output, formula, num_variables, variables, batch_size)
     # ::var:: [batch_size, seq_len, feature_size]
 
     batch_size = var.shape[0]
@@ -164,21 +198,30 @@ def sampling_assignment(formula, num_variables, variables, policy_network,
 
     # Initialize Decoder state
     state = policy_network.init_dec_state(enc_output, batch_size)
-    if state is not None:
+    if state is not None: 
         state = state.to(device)
-    # ::state:: [num_layers, batch_size=1, hidden_size]
+    # ::state:: [num_layers, batch_size, hidden_size]
 
+    # Episode Buffer
+    buffer_action = torch.empty(size=(batch_size, num_variables))
+    # ::buffer_action:: [batch_size, seq_len=num_variables]
 
-    actions = []
-    for t in range(num_variables):
-        #TODO: send to device here.
+    if permute_vars:
+        permutation = torch.cat([torch.randperm(num_variables).unsqueeze(0) for _ in range(batch_size)], dim=0).permute(1,0)
+    else:
+        permutation = torch.cat([torch.tensor([i for i in range(num_variables)]).unsqueeze(0) for _ in range(batch_size)], dim=0).permute(1,0)
+        # ::permutation:: [num_variables, batch_size]
 
-        var_t = var[:,t:t+1,:].to(device)
+    idx = [i for i in range(batch_size)]
+    
+    for t in permutation:
+        var_t = var[idx, t].unsqueeze(1).to(device)
+        assert var_t.shape == (batch_size, 1, var.shape[-1])
+        # ::var_t:: [batch_size, seq_len=1, feature_size]
 
         # Action logits
-        action_logits, state= policy_network.decoder((var_t, action_prev, context), state)
-        # ::action_logits:: [batch_size=1, seq_len=1, feature_size=2]
-        #print(action_logits)  # for debugging
+        action_logits, state = policy_network.decoder((var_t, action_prev, context), state)
+        # ::action_logits:: [batch_size, seq_len=1, feature_size=2]
 
         if strategy == 'greedy':
             action =  greedy_strategy(action_logits)
@@ -187,12 +230,18 @@ def sampling_assignment(formula, num_variables, variables, policy_network,
         else:
             raise TypeError("{} is not a valid strategy, try with 'greedy' or 'sampled'.".format(strategy))
         
-        #print(action.item())  # for debugging
-        actions.append(action.item())
+        #buffer update
+        buffer_action[idx, t] = action
+        
         action_prev = action.unsqueeze(dim=-1)
         #::action_prev:: [batch_size, seq_len=1, feature_size=1]
+    
         
-    return actions
+    return buffer_action.detach().cpu().numpy()
+
+
+
+
 
 ###################################################
 # Neural network utils
