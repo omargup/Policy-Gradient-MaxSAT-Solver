@@ -42,7 +42,7 @@ def minisat_solver(n, formula):
     return assignment, is_sat
         
 
-def learning_solver(config, checkpoint_dir=None, data_dir=None):
+def pg_solver(config, checkpoint_dir=None, data_dir=None):
 
     # Device  
     device = 'cpu'
