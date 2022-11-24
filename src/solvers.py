@@ -1,21 +1,21 @@
 import torch
 import torch.optim as optim
 
-from src.decoders import RNNDecoder
-from src.encoder_decoder import EncoderDecoder
-from src.embeddings import BasicEmbedding, IdentityEmbedding
-from src.baselines import BaselineRollout
-from src.init_states import TrainableState
+# from src.decoders import RNNDecoder
+# from src.encoder_decoder import EncoderDecoder
+# from src.embeddings import BasicEmbedding, IdentityEmbedding
+# from src.baselines import BaselineRollout
+# from src.init_states import TrainableState
 
-from src.init_vars import BasicVar
-from src.init_contexts import EmptyContext
-from src.init_states import ZerosState
+# from src.init_vars import BasicVar
+# from src.init_contexts import EmptyContext
+# from src.init_states import ZerosState
 
-from src.train import train
+# from src.train import train
 import src.utils as utils
 
 from PyMiniSolvers import minisolvers
-
+from ray.air import session
 import os
 
 
@@ -42,93 +42,98 @@ def minisat_solver(n, formula):
     return assignment, is_sat
         
 
-def pg_solver(config, checkpoint_dir=None, data_dir=None):
+# def pg_solver(config):
 
-    # Device  
-    device = 'cpu'
-    if config['gpu']:
-        device = 'cuda' if torch.cuda.is_available() else 'cpu'
+#     # Device  
+#     device = 'cpu'
+#     if config['gpu']:
+#         device = 'cuda' if torch.cuda.is_available() else 'cpu'
     
-    # Data
-    if data_dir is None:
-        raise ValueError("data_dir can not be None.") 
+#     # Data
+#     if config['data_dir'] is None:
+#         raise ValueError("config[data_dir] can not be None.") 
     
-    n, m, formula = utils.dimacs2list(dimacs_path = data_dir)
-    num_variables = n
+#     n, m, formula = utils.dimacs2list(dimacs_path = config['data_dir'])
+#     num_variables = n
     
-    # Embeddings
-    assignment_emb = BasicEmbedding(num_labels=3,
-                                    embedding_size=config['embedding_size'])
-    variable_emb = BasicEmbedding(num_labels=num_variables,
-                                  embedding_size=config['embedding_size'])
-    context_emb = IdentityEmbedding()
+#     # Embeddings
+#     assignment_emb = BasicEmbedding(num_labels=3,
+#                                     embedding_size=config['embedding_size'])
+#     variable_emb = BasicEmbedding(num_labels=num_variables,
+#                                   embedding_size=config['embedding_size'])
+#     context_emb = IdentityEmbedding()
 
-    # Encoder
-    encoder = None
+#     # Encoder
+#     encoder = None
 
-    # Decoder
-    input_size = config['embedding_size'] * 2
-    clip_logits_c = 0  # (default: 0)
-    decoder = RNNDecoder(input_size = input_size,
-                        cell = config['cell'],
-                        assignment_emb = assignment_emb,
-                        variable_emb = variable_emb,
-                        context_emb = context_emb,
-                        hidden_size = config['hidden_size'],
-                        num_layers = config['num_layers'],
-                        dropout = config['dropout'],
-                        clip_logits_c = clip_logits_c)
+#     # Decoder
+#     input_size = config['embedding_size'] * 2
+#     clip_logits_c = 0  # (default: 0)
+#     decoder = RNNDecoder(input_size = input_size,
+#                         cell = config['cell'],
+#                         assignment_emb = assignment_emb,
+#                         variable_emb = variable_emb,
+#                         context_emb = context_emb,
+#                         hidden_size = config['hidden_size'],
+#                         num_layers = config['num_layers'],
+#                         dropout = config['dropout'],
+#                         clip_logits_c = clip_logits_c)
     
-    ## Initializers
-    init_dec_var = BasicVar()
-    init_dec_context = EmptyContext()
-    init_dec_state = ZerosState()
+#     ## Initializers
+#     init_dec_var = BasicVar()
+#     init_dec_context = EmptyContext()
+#     init_dec_state = ZerosState()
 
-    ## Network
-    policy_network = EncoderDecoder(encoder=encoder,
-                                    decoder=decoder,
-                                    init_dec_var=init_dec_var,  # (None default)
-                                    init_dec_context=init_dec_context,  # (None default)
-                                    init_dec_state=init_dec_state)  # (None default)
+#     ## Network
+#     policy_network = EncoderDecoder(encoder=encoder,
+#                                     decoder=decoder,
+#                                     init_dec_var=init_dec_var,  # (None default)
+#                                     init_dec_context=init_dec_context,  # (None default)
+#                                     init_dec_state=init_dec_state)  # (None default)
     
-    optimizer = optim.Adam(policy_network.parameters(), lr=config['lr'])
+#     optimizer = optim.Adam(policy_network.parameters(), lr=config['lr'])
+
+#     if config['raytune']:
+#         loaded_checkpoint = session.get_checkpoint()
+#         if loaded_checkpoint:
+#             print("Loading from checkpoint.")
+#             with loaded_checkpoint.as_directory() as loaded_checkpoint_dir:
+#                 path = os.path.join(loaded_checkpoint_dir, "checkpoint.pt")
+#                 model_state, optimizer_state = torch.load(path)
+#                 policy_network.load_state_dict(model_state)
+#                 optimizer.load_state_dict(optimizer_state)
+           
+
+#     # Training hyperparameters
     
-    if checkpoint_dir:
-        model_state, optimizer_state = torch.load(
-            os.path.join(checkpoint_dir, "checkpoint"))
-        policy_network.load_state_dict(model_state)
-        optimizer.load_state_dict(optimizer_state)
+#     #TODO: clip_grad could be float or None
+#     #TODO: no dropout when layers==1
 
-    # Training hyperparameters
-    
-    #TODO: clip_grad could be float or None
-    #TODO: no dropout when layers==1
+#     variables = None
 
-    variables = None
+#     baseline = None
+#     if config['baseline'] is not None:
+#         baseline = BaselineRollout(config['baseline'])
 
-    baseline = None
-    if config['baseline'] is not None:
-        baseline = BaselineRollout(config['baseline'])
-
-    train(formula,
-        num_variables,
-        variables,
-        config['num_episodes'],
-        config['accumulation_steps'],
-        policy_network,
-        optimizer,
-        device,
-        'sampled',
-        config['batch_size'],
-        config['permute_vars'],
-        config['permute_seed'],
-        baseline,
-        config['entropy_weight'],
-        config['clip_grad'],
-        config['verbose'],
-        config['raytune'],
-        config['episode_log'],
-        config['episode_log_step'],
-        config['optimizer_log'],
-        config['optimizer_log_step'],
-        config['experiment_name'])
+#     train(formula,
+#         num_variables,
+#         variables,
+#         config['num_episodes'],
+#         config['accumulation_steps'],
+#         policy_network,
+#         optimizer,
+#         device,
+#         'sampled',
+#         config['batch_size'],
+#         config['permute_vars'],
+#         config['permute_seed'],
+#         baseline,
+#         config['entropy_weight'],
+#         config['clip_grad'],
+#         config['verbose'],
+#         config['raytune'],
+#         config['episode_log'],
+#         config['episode_log_step'],
+#         config['optimizer_log'],
+#         config['optimizer_log_step'],
+#         config['experiment_name'])

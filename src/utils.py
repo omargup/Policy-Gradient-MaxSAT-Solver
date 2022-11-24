@@ -7,6 +7,72 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 
+def params_summary(model):
+    for name, param in model.named_parameters():
+        if param.requires_grad:
+            print(name, param.shape)
+
+
+def num_sat_clauses_tensor(formula, assignment):
+    '''Computes the number of clauses that an assigment satiesfies.
+        The formula must be in CNF format and the assignment is a torch
+        tensor with shape [batch_size, num_variables].
+        Arguments
+        ---------
+            ::formula (list):: CNF formula to be satisfied.
+            ::assignment (tensor):: Assignment to be verified. Must be a torch tensor
+                with shape [batch_size, num_variables]; e.g.: [[0,1,1], [1,0,1]].
+        Returns
+        -------
+            num_sat (tensor): Number of satisfied clauses with shape [batch_size].
+    '''
+    if not type(assignment) == torch.tensor:
+        assert TypeError("'assignment' must be a tensor with shape [batch_size, num_variables]")
+
+    batch_size = assignment.shape[0]
+    num_sat_list = []
+    for b in range(batch_size):
+        _, num_sat, _ = num_sat_clauses(formula, assignment[b])
+        num_sat_list.append(num_sat)
+    return torch.tensor(num_sat_list, dtype=float)  # [batch_size]
+
+
+def num_sat_clauses(formula, assignment):
+    '''Checks the number of clauses of a CNF formula that an assignment satisfies.
+        Arguments
+        ---------
+            formula (list): CNF formula to be satisfied.
+            assignment (list ): Assignment to be verified.
+                         Must be a list of 1s and 0s.
+        Returns
+        -------
+            is_sat (bool): True if assigment satisfies the
+                           formula.
+            num_sat (int): Number of satisfied clauses.
+            eval_formula (list): List of 1s and 0s indicating
+                                 which clauses were satisfied.
+    '''
+    # TODO: Verify len(list) == num_variables in formula
+    eval_formula = []
+    for clause in formula:
+        eval_clause = []
+        for literal in clause:
+            if literal < 0:
+                eval_literal = not assignment[abs(literal)-1]
+            else:
+                eval_literal = assignment[abs(literal)-1]
+            eval_clause.append(eval_literal)
+        eval_formula.append(any(eval_clause))
+    is_sat = all(eval_formula)
+    num_sat = sum(eval_formula)
+    return is_sat, num_sat, eval_formula
+
+
+
+
+
+
+
 #sns.choose_diverging_palette(as_cmap=False)
 def probs2plot(log_dir, img_path):
     # Read tensorboard logs with tbparser
@@ -57,18 +123,10 @@ def probs2plot(log_dir, img_path):
     plt.show()
     
 
-def params_summary(model):
-    for name, param in model.named_parameters():
-        if param.requires_grad:
-            print(name, param.shape)
-
-
-def mean_sat_clauses(formula, assignment):
-    '''Computes the number of clauses that an assigment satiesfies.
+def sampled_sol(formula, assignment):
+    '''Computes the number of clauses that every assigment in the batch satiesfies and returns the best one.
         The formula must be in CNF format and the assignment is a torch
-        tensor with shape [batch_size, num_variables]. If batch_size > 1
-        then returns the mean of the number that each assignment of the
-        batch satifies.
+        tensor with shape [batch_size, num_variables].
         Arguments
         ---------
             formula (list): CNF formula to be satisfied.
@@ -83,41 +141,20 @@ def mean_sat_clauses(formula, assignment):
 
     batch_size = assignment.shape[0]
     total_num_sat = 0
+    
+    best_num_sat = 0
+    best_assignment = None
     for b in range(batch_size):
         _, num_sat, _ = num_sat_clauses(formula, assignment[b])
-        total_num_sat += num_sat
-    return torch.tensor(total_num_sat/float(batch_size), dtype=float)
+
+        if num_sat > best_num_sat:
+                best_num_sat = num_sat
+                best_assignment = assignment[b]
+    
+    return best_num_sat, best_assignment
 
 
-def num_sat_clauses(formula, assignment):
-    '''Checks the number of clauses of a CNF formula that an assignment satisfies.
-        Arguments
-        ---------
-            formula (list): CNF formula to be satisfied.
-            assignment (list ): Assignment to be verified.
-                         Must be a list of 1s and 0s.
-        Returns
-        -------
-            is_sat (bool): True if assigment satisfies the
-                           formula.
-            num_sat (int): Number of satisfied clauses.
-            eval_formula (list): List of 1s and 0s indicating
-                                 which clauses were satisfied.
-    '''
-    # TODO: Verify len(list) == num_variables in formula
-    eval_formula = []
-    for clause in formula:
-        eval_clause = []
-        for literal in clause:
-            if literal < 0:
-                eval_literal = not assignment[abs(literal)-1]
-            else:
-                eval_literal = assignment[abs(literal)-1]
-            eval_clause.append(eval_literal)
-        eval_formula.append(any(eval_clause))
-    is_sat = all(eval_formula)
-    num_sat = sum(eval_formula)
-    return is_sat, num_sat, eval_formula
+
 
 
 def random_assignment(n):
