@@ -5,6 +5,7 @@ from tbparse import SummaryReader
 import seaborn as sns; sns.set_theme()
 import pandas as pd
 import matplotlib.pyplot as plt
+from PyMiniSolvers import minisolvers
 
 
 def params_summary(model):
@@ -14,17 +15,18 @@ def params_summary(model):
 
 
 def num_sat_clauses_tensor(formula, assignment):
-    '''Computes the number of clauses that an assigment satiesfies.
-        The formula must be in CNF format and the assignment is a torch
-        tensor with shape [batch_size, num_variables].
-        Arguments
-        ---------
-            ::formula (list):: CNF formula to be satisfied.
-            ::assignment (tensor):: Assignment to be verified. Must be a torch tensor
+    '''Counts the number of clauses of a CNF formula that an assignment satisfies.
+    The assignment is a torch tensor with shape [batch_size, num_variables].
+    
+    Arguments
+    ---------
+    -formula (list): A SAT formula in CNF.
+    -assignment (tensor):: Assignment to be verified. Must be a torch tensor
                 with shape [batch_size, num_variables]; e.g.: [[0,1,1], [1,0,1]].
-        Returns
-        -------
-            num_sat (tensor): Number of satisfied clauses with shape [batch_size].
+   
+    Returns
+    -------
+    -num_sat (tensor): Number of satisfied clauses with shape [batch_size].
     '''
     if not type(assignment) == torch.tensor:
         assert TypeError("'assignment' must be a tensor with shape [batch_size, num_variables]")
@@ -38,19 +40,19 @@ def num_sat_clauses_tensor(formula, assignment):
 
 
 def num_sat_clauses(formula, assignment):
-    '''Checks the number of clauses of a CNF formula that an assignment satisfies.
-        Arguments
-        ---------
-            formula (list): CNF formula to be satisfied.
-            assignment (list ): Assignment to be verified.
-                         Must be a list of 1s and 0s.
-        Returns
-        -------
-            is_sat (bool): True if assigment satisfies the
-                           formula.
-            num_sat (int): Number of satisfied clauses.
-            eval_formula (list): List of 1s and 0s indicating
-                                 which clauses were satisfied.
+    '''Counts the number of clauses of a CNF formula that an assignment satisfies.
+
+    Arguments
+    ---------
+    -formula (list): A SAT formula in CNF.
+    -assignment (list): Assignment to be verified.
+                        Must be a list of 1s and 0s.
+    
+    Returns
+    -------
+    -sat (bool): True if assigment satisfies the formula, else False.
+    -num_sat (int): Number of satisfied clauses.
+    -eval_formula (list): List of 1s and 0s indicating which clauses were satisfied.
     '''
     # TODO: Verify len(list) == num_variables in formula
     eval_formula = []
@@ -68,6 +70,27 @@ def num_sat_clauses(formula, assignment):
     return is_sat, num_sat, eval_formula
 
 
+def assignment_eval(formula, assignment):
+    """Uses PyMiniSolver to quickly check if an assignment satisfies or not a CNF formula. 
+
+    Arguments
+    ----------
+    -formula (list): A SAT formula in CNF.
+    -assignment (list): Assignment to be verified.
+                        Must be a list of 1s and 0s.
+
+    Returns
+    ------
+    -sat (bool): True if assigment satisfies the formula, else False.
+    """
+    # TODO: Verify if the assignment includes all variables.
+    S = minisolvers.MinisatSolver()
+    for _ in range(len(assignment)):
+            S.new_var()
+    for clause in formula:
+        S.add_clause(clause)
+    a = list(np.where(np.array(assignment)==1)[0] + np.array(1))
+    return S.check_complete(positive_lits=a)
 
 
 
