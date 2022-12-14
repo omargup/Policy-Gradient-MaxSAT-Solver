@@ -1,23 +1,22 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
 
 class BaseState(nn.Module):
     """The base class for all initial states."""
-    def __init__(self, **kwargs):
-        super(BaseState, self).__init__(**kwargs)
+    def __init__(self, *args, **kwargs):
+        super(BaseState, self).__init__(*args, **kwargs)
     
-    def forward(self, enc_output, batch_size, *args):
+    def forward(self, enc_output, *args):
         raise NotImplementedError
 
 
 class ZerosState(BaseState):
     """ """
-    def __init__(self, **kwargs):
-        super(ZerosState, self).__init__(**kwargs)
+    def __init__(self, *args, **kwargs):
+        super(ZerosState, self).__init__(*args, **kwargs)
     
-    def forward(self, enc_output, batch_size, *args):
+    def forward(self, enc_output, *args):
         # h_0 defaults to zeros with the proper shape if initial
         # state is equeal to None
             return None
@@ -44,9 +43,9 @@ class ZerosState(BaseState):
 
 
 class TrainableState(BaseState):
-    """The base class for all initial states."""
-    def __init__(self, cell, hidden_size, num_layers, a=-0.8, b=0.8, **kwargs):
-        super(TrainableState, self).__init__(**kwargs)
+    """ """
+    def __init__(self, cell, hidden_size, num_layers, a=-0.8, b=0.8, *args, **kwargs):
+        super(TrainableState, self).__init__(*args, **kwargs)
         self.cell = cell
 
         if cell == 'GRU':
@@ -63,15 +62,15 @@ class TrainableState(BaseState):
             nn.init.uniform_(self.h, a=a, b=b)
             nn.init.uniform_(self.c, a=a, b=b)
     
-    def forward(self, enc_output, batch_size, *args):
+    def forward(self, enc_output, *args):
         if self.cell == 'GRU':
-            # state shape: [num_layers, batch_size, hidden_size]
-            return self.h.expand(self.h.shape[0], batch_size, self.h.shape[2])
+            return self.h
+            # state shape: [num_layers, batch_size=1, hidden_size]
 
         elif self.cell == 'LSTM':
-            # h shape: [num_layers, batch_size, hidden_size]
-            # c shape: [num_layers, batch_size, hidden_size]
-            return (self.h.expand(self.h.shape[0], batch_size, self.h.shape[2]), self.c.expand(self.c.shape[0], batch_size, self.c.shape[2]))
+            return (self.h, self.c)
+            # h shape: [num_layers, batch_size=1, hidden_size]
+            # c shape: [num_layers, batch_size=1, hidden_size]
 
 
 

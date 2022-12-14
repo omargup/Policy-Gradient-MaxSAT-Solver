@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from src.embeddings import BaseEmbedding
+from src.architecture.embeddings import BaseEmbedding
 
 class Decoder(nn.Module):
     """ """
@@ -15,14 +15,20 @@ class Decoder(nn.Module):
 
 class RNNDecoder(Decoder):
     """ """
-    def __init__(self, input_size, cell='GRU', assignment_emb=None, variable_emb=None, context_emb=None,
-                    hidden_size=128, num_layers=1, dropout=0, clip_logits_c=0, **kwargs):
+    def __init__(self,
+                 input_size,
+                 cell='GRU',
+                 assignment_emb=None,
+                 variable_emb=None,
+                 context_emb=None,
+                 hidden_size=128,
+                 num_layers=1,
+                 dropout=0,
+                 clip_logits_c=0,
+                 output_size=1, **kwargs):
         super(RNNDecoder, self).__init__(**kwargs)
-        self.cell = cell
-        self.hidden_size = hidden_size
-        self.num_layers = num_layers
         self.c = clip_logits_c
-        #TODO: Check if clip_logits_c is intenger >= 0 
+        #TODO: Check if clip_logits_c is >= 0 
         
         # Embeddings
         self.assignment_embedding = assignment_emb
@@ -47,9 +53,9 @@ class RNNDecoder(Decoder):
                 raise TypeError("context_emb must inherit from BaseEmbedding.")
         
         # RNN
-        if self.cell == 'GRU':
+        if cell == 'GRU':
             self.rnn = nn.GRU(input_size, hidden_size, num_layers, dropout=dropout)
-        elif self.cell == 'LSTM':
+        elif cell == 'LSTM':
             self.rnn = nn.LSTM(input_size, hidden_size, num_layers, dropout=dropout)
         else:
             raise TypeError("{} is not a valid cell, try with 'LSTM' or 'GRU'.".format(self.cell))
@@ -57,7 +63,7 @@ class RNNDecoder(Decoder):
         # TODO: Projection or nn.Linear?
 
         # Output
-        self.dense_out = nn.Linear(hidden_size, 2)
+        self.dense_out = nn.Linear(hidden_size, output_size)
 
     def forward(self, X, state):
         var, a_prev, context = X
@@ -77,6 +83,7 @@ class RNNDecoder(Decoder):
         # Broadcasting context
         context = context.repeat(var.shape[0], 1, 1)
         # ::context:: [seq_len, batch_size, features_size]
+        
         dec_input = torch.cat((var, a_prev, context), -1)
         # ::dec_input:: [seq_len, batch_size, features_size=input_size]
 
@@ -88,7 +95,7 @@ class RNNDecoder(Decoder):
         # ::output:: [batch_size, seq_len, hidden_size]
 
         logits = self.dense_out(output)
-        # ::logits:: [batch_size, seq_len, 2]
+        # ::logits:: [batch_size, seq_len, output_size]  # output_size is 1 or 2.
 
         # clipped logits
         #TODO: Check c * tanh(logits)

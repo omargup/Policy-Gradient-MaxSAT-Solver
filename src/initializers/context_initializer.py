@@ -5,8 +5,8 @@ import torch.nn.functional as F
 
 class BaseContext(nn.Module):
     """The base class for all contexts initializers."""
-    def __init__(self, **kwargs):
-        super(BaseContext, self).__init__(**kwargs)
+    def __init__(self, *args, **kwargs):
+        super(BaseContext, self).__init__(*args, **kwargs)
 
     def forward(self, enc_output, formula, num_variables, variables, batch_size, *args):
         raise NotImplementedError
@@ -14,17 +14,18 @@ class BaseContext(nn.Module):
 
 class EmptyContext(BaseContext):
     """ Returns an empty context."""
-    def __init__(self, **kwargs):
-        super(EmptyContext, self).__init__(**kwargs)
+    def __init__(self, *args, **kwargs):
+        super(EmptyContext, self).__init__(*args, **kwargs)
 
     def forward(self, enc_output, formula, num_variables, variables, batch_size, *args):
         return torch.empty([batch_size, 0])
         # ::context:: [batch_size, feature_size=0]
+  
         
 class EncoderOutputContext(BaseContext):
     """ Returns an empty context."""
-    def __init__(self, aggregation="mean", **kwargs):
-        super(EncoderOutputContext, self).__init__(**kwargs)
+    def __init__(self, aggregation="mean", *args, **kwargs):
+        super(EncoderOutputContext, self).__init__(*args, **kwargs)
         if aggregation not in ["mean", "sum", "max", "min"]:
             raise ValueError("Supported aggregations are 'mean', 'sum', 'max' or 'min'")
         self.aggregation=aggregation
