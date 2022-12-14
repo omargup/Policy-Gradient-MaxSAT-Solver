@@ -8,8 +8,8 @@
 
 ## Requirements
 
-    - [PyMiniSolvers](https://github.com/liffiton/PyMiniSolvers).
-    - [tbparse](https://github.com/j3soon/tbparse).
+- [PyMiniSolvers](https://github.com/liffiton/PyMiniSolvers).
+- [tbparse](https://github.com/j3soon/tbparse).
 
 ## Benchmark instances
 
