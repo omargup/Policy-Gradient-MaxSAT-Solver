@@ -8,7 +8,7 @@ class BaseVar(nn.Module):
     def __init__(self, *args, **kwargs):
         super(BaseVar, self).__init__(*args, **kwargs)
     
-    def forward(self, enc_output, formula, num_variables, variables, batch_size, *args):
+    def forward(self, enc_output, formula, num_variables, variables, *args):
         raise NotImplementedError
 
 
@@ -17,11 +17,11 @@ class BasicVar(BaseVar):
     def __init__(self, *args, **kwargs):
         super(BasicVar, self).__init__(*args, **kwargs)
     
-    def forward(self, enc_output, formula, num_variables, variables, batch_size):
+    def forward(self, enc_output, formula, num_variables, variables, *args):
         var = torch.tensor([i for i in range(num_variables)], dtype=torch.int64).reshape(1, -1, 1)
-        var = torch.cat([var] * batch_size)
-        assert var.shape == (batch_size, num_variables, 1)
-        # ::var:: [batch_size, seq_len=num_variables, feature_size=1]
+        #var = torch.cat([var] * batch_size)
+        assert var.shape == (1, num_variables, 1)
+        # ::var:: [batch_size=1, seq_len=num_variables, feature_size=1]
         return var
 
 

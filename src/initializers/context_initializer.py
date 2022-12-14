@@ -8,7 +8,7 @@ class BaseContext(nn.Module):
     def __init__(self, *args, **kwargs):
         super(BaseContext, self).__init__(*args, **kwargs)
 
-    def forward(self, enc_output, formula, num_variables, variables, batch_size, *args):
+    def forward(self, enc_output, formula, num_variables, variables, *args):
         raise NotImplementedError
 
 
@@ -17,9 +17,9 @@ class EmptyContext(BaseContext):
     def __init__(self, *args, **kwargs):
         super(EmptyContext, self).__init__(*args, **kwargs)
 
-    def forward(self, enc_output, formula, num_variables, variables, batch_size, *args):
-        return torch.empty([batch_size, 0])
-        # ::context:: [batch_size, feature_size=0]
+    def forward(self, enc_output, formula, num_variables, variables, *args):
+        return torch.empty([1, 0])
+        # ::context:: [batch_size=1, feature_size=0]
   
         
 class EncoderOutputContext(BaseContext):
