@@ -20,8 +20,9 @@ class ProjEmbedding(BaseEmbedding):
 
     def forward(self, X):
         # X shape: [batch_size, seq_len, features_size=input_size]
-        if X.dim() != 3:
-            raise TypeError("X' shape must be [batch_size, seq_len, features_size].")
+        assert (X.dim() == 3) and (X.dtype == torch.float), \
+            f"In ProjEmbedding's input. dim: {X.dim()}, shape: {X.shape}, dtype: {X.dtype}."
+
         return self.proj(X.float())
         # X shape: [batch_size, seq_len, features_size=embedding_size]
 
@@ -36,8 +37,9 @@ class OneHotProjEmbedding(BaseEmbedding):
 
     def forward(self, X):
         # X shape: [batch_size, seq_len, features_size=1]
-        if X.dim() != 3 or X.shape[2] != 1 or X.dtype != torch.int64:
-            raise TypeError("X must be a integer tensor (torch.int64) with shape [batch_size, seq_len, features_size=1].")
+        assert (X.dim() == 3) and (X.shape[-1] == 1) and (X.dtype == torch.int64), \
+            f"In OneHotProjEmbedding's input. dim: {X.dim()}, shape: {X.shape}, dtype: {X.dtype}."
+     
         X = X.squeeze(dim=-1)
         # X shape: [batch_size, seq_len]
         X = F.one_hot(X, self.num_labels).float()
@@ -52,11 +54,10 @@ class IdentityEmbedding(BaseEmbedding):
         super(IdentityEmbedding, self).__init__()
 
     def forward(self, X):
-        # X shape: [batch_size, seq_len, features_size]
-        if X.dim() != 3:
-            if X.dim() != 2: 
-                #TODO: valiedate input shape when context is empty
-                raise TypeError("X must be a tensor with shape [batch_size, seq_len, features_size].")
+        # X shape: [batch_size, seq_len, features_size] or [batch_size, features_size]
+        assert (X.dim() == 3) or (X.dim() == 2), \
+            f"In IdentityEmbedding's input. dim: {X.dim()}, shape: {X.shape}."
+
         return X
         # X shape: [batch_size, seq_len, features_size]
 
