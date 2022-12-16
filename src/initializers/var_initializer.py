@@ -20,7 +20,7 @@ class BasicVar(BaseVar):
     def forward(self, enc_output, formula, num_variables, variables, *args):
         var = torch.tensor([i for i in range(num_variables)], dtype=torch.int64).reshape(1, -1, 1)
         #var = torch.cat([var] * batch_size)
-        assert var.shape == (1, num_variables, 1)
+        assert var.shape == (1, num_variables, 1), f"In BasicVar initializer. shape: {var.shape}, dtype: {var.dtype}."
         # ::var:: [batch_size=1, seq_len=num_variables, feature_size=1]
         return var
 
