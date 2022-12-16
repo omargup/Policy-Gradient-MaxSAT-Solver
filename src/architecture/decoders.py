@@ -27,8 +27,11 @@ class RNNDecoder(Decoder):
                  clip_logits_c=0,
                  output_size=1, **kwargs):
         super(RNNDecoder, self).__init__(**kwargs)
+        
+        # Validate clip_logits_c
         self.c = clip_logits_c
-        #TODO: Check if clip_logits_c is >= 0 
+        if (clip_logits_c < 0):
+            raise ValueError(f"`clip_logits_c` must be equal or greater than 0, got {clip_logits_c} ")
         
         # Embeddings
         self.assignment_embedding = assignment_emb
@@ -60,19 +63,23 @@ class RNNDecoder(Decoder):
         else:
             raise TypeError("{} is not a valid cell, try with 'LSTM' or 'GRU'.".format(self.cell))
         # TODO: validate input size == variable_emb + assig_emb + context
-        # TODO: Projection or nn.Linear?
 
         # Output
         self.dense_out = nn.Linear(hidden_size, output_size)
 
     def forward(self, X, state):
         var, a_prev, context = X
-        # ::var:: [batch_size, seq_len, feature_size]
+        # ::var:: [batch_size, seq_len, feature_size], dytpe=torch.float or torch.int64
         #       ex: [[[0], [1], [2]], [[0], [1], [2]]]
-        # ::a_prev:: [batch_size, seq_len, feaure_size=1]
+        # ::a_prev:: [batch_size, seq_len, feaure_size=1], dtype=torch.int64
         #       ex.: [[[0], [0], [1]], [[1], [0], [1]]]
-        # ::context:: [batch_size, feature_size]
+        # ::context:: [batch_size, feature_size], dytpe=torch.float
         # ::state:: [num_layers, batch_size, hidden_size]
+        assert var.dim() == 3, f"var in decoder. dim: {var.dim()}, shape: {var.shape}, dtype: {var.dtype}."
+        assert (a_prev.shape[-1] == 1) and (a_prev.dtype == torch.int64) and (a_prev.dim() == 3), \
+            f"a_prev in decoder. dim: {a_prev.dim()}, shape: {a_prev.shape}, dtype: {a_prev.dtype}."
+        assert context.dim() == 2, f"context in decoder. dim: {context.dim()}, shape: {context.shape}, dtype: {context.dtype}."
+        
         var = self.variable_embedding(var).permute(1, 0, 2)
         # ::var:: [seq_len, batch_size, features_size=var_embedding_size]
         a_prev = self.assignment_embedding(a_prev).permute(1, 0, 2)
@@ -80,8 +87,9 @@ class RNNDecoder(Decoder):
         context = self.context_embedding(context)
         # ::context:: [batch_size, features_size=context_embedding_size]
         
-        # Broadcasting context
-        context = context.repeat(var.shape[0], 1, 1)
+        # Broadcasting context (seq_len dimension)
+        #context = context.repeat(var.shape[0], 1, 1)
+        context = context.expand(var.shape[0], 1, 1)
         # ::context:: [seq_len, batch_size, features_size]
         
         dec_input = torch.cat((var, a_prev, context), -1)
@@ -98,7 +106,6 @@ class RNNDecoder(Decoder):
         # ::logits:: [batch_size, seq_len, output_size]  # output_size is 1 or 2.
 
         # clipped logits
-        #TODO: Check c * tanh(logits)
         if self.c > 0:
             logits = self.c * F.tanh(logits)
 
