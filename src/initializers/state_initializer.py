@@ -5,7 +5,7 @@ import torch.nn as nn
 class BaseState(nn.Module):
     """The base class for all initial states."""
     def __init__(self, *args, **kwargs):
-        super(BaseState, self).__init__(*args, **kwargs)
+        super(BaseState, self).__init__()
     
     def forward(self, enc_output, *args):
         raise NotImplementedError
@@ -14,7 +14,7 @@ class BaseState(nn.Module):
 class ZerosState(BaseState):
     """ """
     def __init__(self, *args, **kwargs):
-        super(ZerosState, self).__init__(*args, **kwargs)
+        super(ZerosState, self).__init__()
     
     def forward(self, enc_output, *args):
         # h_0 defaults to zeros with the proper shape if initial
@@ -45,7 +45,7 @@ class ZerosState(BaseState):
 class TrainableState(BaseState):
     """ """
     def __init__(self, cell, hidden_size, num_layers, a=-0.8, b=0.8, *args, **kwargs):
-        super(TrainableState, self).__init__(*args, **kwargs)
+        super(TrainableState, self).__init__()
         self.cell = cell
 
         if cell == 'GRU':
@@ -53,7 +53,6 @@ class TrainableState(BaseState):
             self.h = nn.Parameter(torch.empty(num_layers, 1, hidden_size))
             nn.init.uniform_(self.h, a=a, b=b)
             
-        
         elif cell == 'LSTM':
             # h shape: [num_layers, batch_size=1, hidden_size]
             self.h = nn.Parameter(torch.empty(num_layers, 1, hidden_size))
