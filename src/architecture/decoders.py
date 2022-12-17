@@ -89,7 +89,7 @@ class RNNDecoder(Decoder):
         
         # Broadcasting context (seq_len dimension)
         #context = context.repeat(var.shape[0], 1, 1)
-        context = context.expand(var.shape[0], 1, 1)
+        context = context.expand(var.shape[0], context.shape[0], context.shape[1])
         # ::context:: [seq_len, batch_size, features_size]
         
         dec_input = torch.cat((var, a_prev, context), -1)
