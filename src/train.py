@@ -1,3 +1,4 @@
+from random import betavariate
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -6,22 +7,29 @@ import torch.distributions as distributions
 import src.utils as utils
 from src.utils import sampling_assignment
 
-from torch.utils.tensorboard import SummaryWriter
-
 import numpy as np
 from ray import tune
-import time
+
+from ray.air import session
+from ray.air.checkpoint import Checkpoint
+
 import os
+import time
+from tqdm import tqdm
+
 
 
 # TODO: save only sum, not each value.
 class Buffer():
-    def __init__(self, batch_size, num_variables) -> None:
+    """
+    Tracks episode's relevant information.
+    """
+    def __init__(self, batch_size, num_variables, dec_output_size) -> None:
         # Episode Buffer
-        self.action_logits = torch.empty(size=(batch_size, num_variables, 2))  # verbose 3
-        # ::buffer_action_logits:: [batch_size, seq_len=num_variables, feature_size=2]
-        self.action_softmax = torch.empty(size=(batch_size, num_variables, 2))  # verbose 3
-        # ::buffer_action_softmax:: [batch_size, seq_len=num_variables, feature_size=2]
+        self.action_logits = torch.empty(size=(batch_size, num_variables, dec_output_size))
+        # ::buffer_action_logits:: [batch_size, seq_len=num_variables, feature_size=1or2]
+        self.action_probs = torch.empty(size=(batch_size, num_variables, dec_output_size))
+        # ::buffer_action_probs:: [batch_size, seq_len=num_variables, feature_size=1or2]
         self.action = torch.empty(size=(batch_size, num_variables), dtype = torch.int64)
         # ::buffer_action:: [batch_size, seq_len=num_variables]
         self.action_log_prob = torch.empty(size=(batch_size, num_variables))
@@ -29,411 +37,369 @@ class Buffer():
         self.entropy = torch.empty(size=(batch_size, num_variables))
         # ::buffer_entropy:: [batch_size, seq_len=num_variables]
     
-    def update(self, idx, t, action_logits, action_softmax, action, action_log_prob, entropy):
-        self.action_logits[idx, t] = action_logits.squeeze(1)  # Verbose 3
-        self.action_softmax[idx, t] = action_softmax.squeeze(1)  # Verbose 3
+    def update(self, idx, t, action_logits, action_probs, action, action_log_prob, entropy):
+        assert action.dtype == torch.int64, f'action in update Buffer. dtype: {action.dtype}, shape: {action.shape}.'
+        self.action_logits[idx, t] = action_logits.squeeze(1)
+        self.action_probs[idx, t] = action_probs.squeeze(1)
         self.action[idx, t] = action.view(-1)
         self.action_log_prob[idx, t] = action_log_prob.view(-1)
         self.entropy[idx, t] = entropy.view(-1)
 
 
-class Episode():
-    def __init__(self,
-                 formula,
-                 num_variables,
-                 variables,
-                 policy_network,
-                 device,
-                 strategy = 'sampled',
-                 batch_size = 1,
-                 permute_vars = False,
-                 permute_seed = None, #2147483647
-                 baseline = None,
-                 entropy_weight = 0):
-    
-        self.formula = formula
-        self.num_variables = num_variables
-        self.variables = variables
-        self.policy_network = policy_network
-        self.device = device
-        self.strategy = strategy
-        self.batch_size = batch_size
-        self.permute_vars = permute_vars
-        self.permute_seed = permute_seed
-        self.baseline = baseline
-        self.entropy_weight = entropy_weight
-
-        #self.buffer = Buffer(batch_size, num_variables)
-
-
-    def initialize(self):
-        """
-        Attributes
-        ----------
-            :: enc_output ::
-            :: var ::
-            :: init_action ::
-            :: context ::
-            :: state ::
-            :: permutation ::
-            :: buffer ::
-        """
-        # Encoder
-        self.enc_output = None
-        if self.policy_network.encoder is not None:
-            self.enc_output = self.policy_network.encoder(self.formula, self.num_variables, self.variables)
-
-        # Initialize Decoder Variables 
-        self.var = self.policy_network.init_dec_var(self.enc_output, self.formula, self.num_variables, self.variables, self.batch_size)
-        # ::var:: [batch_size, seq_len, feature_size]
-
-        # Initialize action_prev at time t=0 with token 2.
-        #   Token 0 is for assignment 0, token 1 for assignment 1
-        self.init_action = torch.tensor([2] * self.batch_size, dtype=torch.long).reshape(-1,1,1).to(self.device)
-        # ::action_prev:: [batch_size, seq_len=1, feature_size=1]
-
-        # Initialize Decoder Context
-        self.context = self.policy_network.init_dec_context(self.enc_output, self.formula, self.num_variables, self.variables, self.batch_size).to(self.device)
-        # ::context:: [batch_size, feature_size]
-
-        # Initialize Decoder state
-        self.init_state = self.policy_network.init_dec_state(self.enc_output, self.batch_size)
-        if self.init_state is not None: 
-            self.init_state = self.init_state.to(self.device)
-        # ::init_state:: [num_layers, batch_size, hidden_size]
-
-        # Permutation of the indices of the variables
-        if self.permute_vars:
-            if self.permute_seed is not None:
-                gen = torch.Generator(device=self.device)
-                self.permutation = torch.cat([torch.randperm(self.num_variables, generator=gen.manual_seed(self.permute_seed)).unsqueeze(0) for _ in range(self.batch_size)], dim=0).permute(1,0)
-            else:
-                self.permutation = torch.cat([torch.randperm(self.num_variables).unsqueeze(0) for _ in range(self.batch_size)], dim=0).permute(1,0)
+def vars_permutation(num_variables,
+                    device,
+                    batch_size = 1,
+                    permute_vars=False,
+                    permute_seed=None):  # e.g.: 2147483647
+    """
+    Returns a permutation of the variables' indices.
+    """
+    if permute_vars:
+        if permute_seed is not None:
+            gen = torch.Generator(device=device)
+            permutation = torch.cat([torch.randperm(num_variables, generator=gen.manual_seed(permute_seed)).unsqueeze(0) for _ in range(batch_size)], dim=0).permute(1,0)
         else:
-            self.permutation = torch.cat([torch.tensor([i for i in range(self.num_variables)]).unsqueeze(0) for _ in range(self.batch_size)], dim=0).permute(1,0)
+            permutation = torch.cat([torch.randperm(num_variables).unsqueeze(0) for _ in range(batch_size)], dim=0).permute(1,0)
+    else:
+        permutation = torch.cat([torch.tensor([i for i in range(num_variables)]).unsqueeze(0) for _ in range(batch_size)], dim=0).permute(1,0)
         # ::permutation:: [num_variables, batch_size]; e.g.: [[0, 1, 2, 3, 4], [0, 1, 2, 3, 4]]
 
-        # Initialize buffer
-        self.buffer = Buffer(self.batch_size, self.num_variables)
+    return permutation
 
 
-    def prediction(self):
-        """
-        Runs an episode and updates the buffer.
-        """
-        
-        action_prev = self.init_action
-        state = self.init_state
-        batch_idx = [i for i in range(self.batch_size)]
-        
-        # Run an episode
-        for var_idx in self.permutation:
-            var_t = self.var[batch_idx, var_idx].unsqueeze(1).to(self.device)
-            assert var_t.shape == (self.batch_size, 1, self.var.shape[-1])
-            # ::var_t:: [batch_size, seq_len=1, feature_size]
-
-            # Action logits
-            action_logits, state = self.policy_network.decoder((var_t, action_prev, self.context), state)
-            # ::action_logits:: [batch_size, seq_len=1, feature_size=2]
-
-            # Prob distribution over actions
-            action_softmax = F.softmax(action_logits, dim = -1)  # Verbose 3
-            action_dist = distributions.Categorical(logits= action_logits)
-            
-            # Action selection
-            if self.strategy == 'greedy':
-                # Choose greedy action
-                action = torch.argmax(action_logits, dim=-1)
-            elif self.strategy == 'sampled':
-                # Sample a rondom action 
-                action = action_dist.sample()
-            else:
-                raise TypeError("{} is not a valid strategy, try with 'greedy' or 'sampled'.".format(self.strategy))
-            
-            # Log-prob of the action
-            action_log_prob = action_dist.log_prob(action)
-
-            # Computing Entropy
-            entropy = action_dist.entropy()
-            
-            # Take the choosen action
-            #-------
-
-            # Update buffer
-            self.buffer.update(batch_idx, var_idx, action_logits, action_softmax, action, action_log_prob, entropy)
-            
-            #actions_logits.append(list(np.around(action_logits.detach().cpu().numpy().flatten(), 2)))
-            #actions_softmax.append(list(np.around(F.softmax(action_logits.detach(), -1).numpy().flatten(), 2)))
-            #actions.append(action.item())
-            #action_log_probs.append(action_log_prob)
-            #entropies.append(action_dist_entropy)
-
-            action_prev = action.unsqueeze(dim=-1)
-            #::action_prev:: [batch_size, seq_len=1, feature_size=1]
-        
-        return self.buffer.action  # self.buffer.action.detach().cpu().numpy()
-
-
-    def get_loss(self):
-        """
-        Attributes
-        ----------
-            :: mean_num_sat ::
-            :: baseline_val ::
-            :: mean_action_log_prob ::
-            :: mean_entropy ::
-            :: loss ::
-        """
-        is_training = self.policy_network.training
-        
-        self.policy_network.eval()
-        with torch.no_grad():
-            # Compute num of sat clauses (mean over batch)
-            self.mean_num_sat = utils.mean_sat_clauses(self.formula, self.buffer.action.detach().cpu().numpy()).detach()
-
-            # Compute baseline
-            # TODO: Test baseline
-            # TODO: Baseline runs in parallel rollout (by batch)
-            self.baseline_val = torch.tensor(0, dtype=float).detach()
-            if self.baseline is not None:
-                self.baseline_val = self.baseline(self.formula, self.num_variables, self.variables, self.policy_network, self.device, self.permute_vars, self.permute_seed).detach()
-
-        if is_training:
-            self.policy_network.train()
-        
-        # Get loss (mean over the batch)
-        total_action_log_prob = self.buffer.action_log_prob.sum(dim=-1)
-        self.mean_action_log_prob =  total_action_log_prob.mean()  # mean over the batch
-        total_entropy = self.buffer.entropy.sum(-1)
-        self.mean_entropy = total_entropy.mean().detach()  # mean over the batch
-        self.loss = - ((self.mean_num_sat - self.baseline_val) * self.mean_action_log_prob) - (self.entropy_weight * self.mean_entropy)
-        # TODO: entropy detach?
-
-        return self.loss, self.mean_num_sat 
-
-
-def eval(formula,
-         num_variables,
-         variables,
-         policy_network,
-         device,
-         strategy = 'greedy',
-         batch_size = 1,
-         permute_vars = False,
-         permute_seed = None):
-
-    policy_network.eval()
-    policy_network.to(device)
-
-    e_eval = Episode(formula,
-                num_variables,
-                variables,
+def run_episode(num_variables,
                 policy_network,
                 device,
-                strategy,
-                batch_size,
-                permute_vars,
-                permute_seed,
-                baseline = None,
-                entropy_weight = 0)
+                dec_init_state,
+                dec_vars,
+                dec_context,
+                init_action,
+                strategy = 'sampled',
+                batch_size = 1,
+                permute_vars = False,
+                permute_seed = None):  # e.g.: 2147483647          
+    """
+    Runs an episode and returns an updated buffer.
+    """
+    dec_output_size = policy_network.decoder.dense_out.bias.shape[0]
+    assert (dec_output_size == 1) or (dec_output_size == 2), f"In run_episode. Decoder's output shape[-1]: {dec_output_size}"
+    buffer = Buffer(batch_size, num_variables, dec_output_size)
+    batch_idx = [i for i in range(batch_size)]
 
-    e_eval.initialize()
-    assignment = e_eval.prediction()
-    loss, mean_num_sat = e_eval.get_loss()
+    permutation = vars_permutation(num_variables,
+                                   device,
+                                   batch_size,
+                                   permute_vars,
+                                   permute_seed)
+    # ::permutation:: [num_variables, batch_size]; # e.g.: [[0, 1, 2, 3, 4], [0, 1, 2, 3, 4]]
+    
+    # Expanding dec_init_state 
+    state = None
+    if dec_init_state is not None:
+        if type(state) == tuple:  # LSTM
+            state = (dec_init_state[0].expand(dec_init_state[0].shape[0], batch_size, dec_init_state[0].shape[2]), \
+                dec_init_state[1].expand(dec_init_state[1].shape[0], batch_size, dec_init_state[1].shape[2]))
+            # ::state h:: [num_layers, batch_size, hidden_size]
+            # ::state c:: [num_layers, batch_size, hidden_size]
+        else:  # GRU
+            state = dec_init_state.expand(dec_init_state.shape[0], batch_size, dec_init_state.shape[2])
+            # ::state:: [num_layers, batch_size, hidden_size]
 
-    return loss.detach(), mean_num_sat, assignment.detach()
-    # ::assignment:: [batch_size, seq_len=num_variables]
+    # Expanding init_action
+    #action_prev = torch.cat([init_action] * batch_size)
+    action_prev = init_action.expand(batch_size, init_action.shape[1], init_action.shape[2])
+    # ::action_prev:: [batch_size, seq_len=1, feature_size=1]
+    assert action_prev.dtype == torch.int64, f'Expanding action_prev in run_episode. dtype: {action_prev.dtype}, shape: {action_prev.shape}.'
+
+    # Expanding dec_vars
+    #dec_vars = torch.cat([dec_vars] * batch_size)
+    dec_vars = dec_vars.expand(batch_size, dec_vars.shape[1], dec_vars.shape[2])
+    # ::dec_vars:: [batch_size, seq_len=num_variables, feature_size]
+
+    # Expanding dec_context
+    #dec_context = torch.cat([dec_context] * batch_size)
+    dec_context = dec_context.expand(batch_size, -1)
+    # ::dec_context:: [batch_size, feature_size]
 
 
+    for var_idx in permutation:
+        var_t = dec_vars[batch_idx, var_idx].unsqueeze(1).to(device)
+        assert var_t.shape == (batch_size, 1, dec_vars.shape[-1])
+        # ::var_t:: [batch_size, seq_len=1, feature_size]
+
+        # Action logits
+        action_logits, state = policy_network.decoder((var_t, action_prev, dec_context), state)
+        # ::action_logits:: [batch_size, seq_len=1, output_size=(1 or 2)]
+        assert ((action_logits.shape[-1] == 1) or (action_logits.shape[-1] == 2)), f'action_logits in run_episode. shape: {action_logits.shape}.'
+
+        # Prob distribution over actions
+        if action_logits.shape[-1] == 1:
+            action_probs = torch.sigmoid(action_logits)
+            action_dist = distributions.Bernoulli(probs=action_probs)
+        else:  # action_logits.shape[-1] == 2
+            action_probs = F.softmax(action_logits, dim=-1)
+            action_dist = distributions.Categorical(probs=action_probs)
+        
+        # Action selection
+        if strategy == 'greedy':
+            if action_logits.shape[-1] == 1:
+                action = torch.round(action_probs)
+            else:  # action_logits.shape[-1] == 2
+                action = torch.argmax(action_probs, dim=-1)
+        elif strategy == 'sampled':
+            action = action_dist.sample()
+        else:
+            raise TypeError("{} is not a valid strategy, try with 'greedy' or 'sampled'.".format(strategy))
+        assert action.shape == torch.Size([batch_size, 1, 1])
+        # ::action:: [batch_size, seq_len=1, feature_size=1]
+
+        # Log-prob of the action
+        action_log_prob = action_dist.log_prob(action)
+
+        # Computing Entropy
+        entropy = action_dist.entropy()
+        
+        # Take the choosen action
+        #-------
+
+        # Update buffer
+        buffer.update(batch_idx, var_idx, action_logits, action_probs, action.to(dtype=torch.int64), action_log_prob, entropy)
+        
+        #actions_logits.append(list(np.around(action_logits.detach().cpu().numpy().flatten(), 2)))
+        #actions_softmax.append(list(np.around(F.softmax(action_logits.detach(), -1).numpy().flatten(), 2)))
+        #actions.append(action.item())
+        #action_log_probs.append(action_log_prob)
+        #entropies.append(action_dist_entropy)
+
+        action_prev = action.to(dtype=torch.int64)
+        #::action_prev:: [batch_size, seq_len=1, feature_size=1]
+        assert action.shape == torch.Size([batch_size, 1, 1])
+    
+    # return buffer.action  # self.buffer.action.detach().cpu().numpy()
+    return buffer
+    
 
 def train(formula,
           num_variables,
           variables,
-          num_episodes,
-          accumulation_steps,
           policy_network,
           optimizer,
           device,
-          strategy = 'sampled',
-          batch_size = 1,
-          permute_vars = False,
-          permute_seed = None,
-          baseline = None,
-          entropy_weight = 0,
-          clip_grad = None,
-          verbose = 1,
+          strategy='sampled',
+          batch_size=1,
+          permute_vars=False,
+          permute_seed=None,
+          baseline=None,
+          entropy_weight=0,
+          clip_grad=None,
           raytune = False,
-          episode_log = False,
-          episode_log_step = 1,
-          optimizer_log = False,
-          optimizer_log_step = 1,
-          experiment_name = None):
+          num_episodes=5000,
+          accumulation_episodes=1,
+          log_episodes=100,
+          eval_episodes=100,
+          eval_strategies=[0, 10], # 0 for greedy, i < 0 takes i samples and returns the best one.
+          writer = None,  # Tensorboard writer
+          run_name = None,
+          progress_bar = False):
     """ Train Enconder-Decoder policy following Policy Gradient Theorem
     
     PARAMETERS
     ----------
-
-    episode_log : bool. Enable logging TensorBoard files (loss, num_sat, prob_0 and prob_1).
+    log_episodes : Enable logging TensorBoard files (loss, num_sat, prob_0 and prob_1).
                     Default False.
-    episode_log_step : int. If episode_log is True, log info every log_step steps. Default 1.
+    log_episodes : int. Log info every `log_episodes` episodes. Default: 100.
+
+    eval_episodes : int. Run evaluation every `eval_episodes` episodes. Default: 100.
 
     logs_dir : str. Directory where tensorboard logs are saved. If None (default), logs are saved
                     as './outputs/logs/run' + time of the system.
     """
+    print(f"\nStart training for run-id {run_name}")
 
-    # Initliaze parameters
-    #def xavier_init_weights(m):
-    #    if type(m) == nn.Linear:
-    #        nn.init.xavier_uniform_(m.weight)
-    #    if type(m) == nn.GRU or type(m) == nn.LSTM:
-    #        for param in m._flat_weights_names:
-    #            if "weight" in param:
-    #                nn.init.xavier_uniform_(m._parameters[param])
-    #policy_network.apply(xavier_init_weights)
-    # TODO: check TrainableState
-    # TODO: check initialize params
-    # TODO: clean paths with os and opts.
-    
-    output_dir = 'outputs'
-    log_dir = 'logs'
-    exp_name = experiment_name
-    if experiment_name is None:
-        exp_name = 'exp_' + time.strftime("%Y%m%dT%H%M%S")
-    run_id = time.strftime("%Y%m%dT%H%M%S")
-    run_name = 'n' + str(num_variables)
-
-    if episode_log:
-        #log_dir = './outputs/' + experiment_name + '/runs/n' + str(num_variables) +'/'+str(r)
-        #log_dir = './outputs/' + runname
-        writer = SummaryWriter(log_dir = os.path.join(log_dir, exp_name, run_id + "_episode_log_" + run_name))
-    
-    if optimizer_log:
-        writer_opt = SummaryWriter(log_dir = os.path.join(log_dir, exp_name, run_id + "_optimizer_log_" + run_name))
-
+    # Put model in train mode
     policy_network.to(device)
     policy_network.train()
     optimizer.zero_grad()
 
-    history_loss = []
-    history_num_sat = []
-    history_loss_val = []
-    history_num_sat_val = []
+    # Initializations (for training)
+    # Initialize Encoder
+    enc_output = None
+    if policy_network.encoder is not None:
+        enc_output = policy_network.encoder(formula, num_variables, variables)
 
-    mean_loss = 0
-    mean_num_sat = 0
-    optim_step = 0  # counts the number of times optim.step() is applied
+    # Initialize Decoder Variables 
+    dec_vars = policy_network.dec_var_initializer(enc_output, formula, num_variables, variables)
+    # ::dec_vars:: [batch_size=1, seq_len=num_variables, feature_size]
 
-    for episode in range(1, num_episodes + 1):
-        e_train = Episode(formula,
-                        num_variables,
-                        variables,
-                        policy_network,
-                        device,
-                        strategy,
-                        batch_size,
-                        permute_vars,
-                        permute_seed,
-                        baseline,
-                        entropy_weight)
+    # Initialize Decoder Context
+    dec_context = policy_network.dec_context_initializer(enc_output, formula, num_variables, variables).to(device)
+    # ::dec_context:: [batch_size=1, feature_size]
 
-        e_train.initialize()
-        assignment = e_train.prediction()
-        episode_loss, episode_num_sat = e_train.get_loss()
+    # Initialize action_prev at time t=0 with token 2.
+    #   Token 0 is for assignment 0, token 1 for assignment 1
+    init_action = torch.tensor([2], dtype=torch.long).reshape(-1,1,1).to(device)
+    # ::init_action:: [batch_size=1, seq_len=1, feature_size=1]
 
-        """
-        if verbose == 3:
-            print(f"\nepisode: {episode}")
-            print(f"logits: {episode_stats['logits']}")
-            print(f"probs: {episode_stats['probs']}")
-            print(f"sampled actions: {episode_stats['sampled actions']}")
-            print(f"entropy: {episode_stats['entropy']}")
-            print(f"weighted_entropy: {episode_stats['weighted_entropy']}")
-            print(f"num_sat: {episode_stats['num_sat']}")
-            print(f"baseline: {episode_stats['baseline']}")
-            print(f"log_probs: {episode_stats['log_probs']}")
-            print(f"loss: {episode_stats['loss']}")
-        """
+    # Initialize Decoder state
+    dec_init_state = policy_network.dec_state_initializer(enc_output)
+    if dec_init_state is not None: 
+        dec_init_state = dec_init_state.to(device)
+    # ::dec_init_state:: [num_layers, batch_size=1, hidden_size]
 
+
+    for episode in tqdm(range(1, num_episodes + 1), disable=progress_bar, ascii=True):
+        
+        buffer = run_episode(num_variables,
+                             policy_network,
+                             device,
+                             dec_init_state,
+                             dec_vars,
+                             dec_context,
+                             init_action,
+                             strategy,
+                             batch_size,
+                             permute_vars,
+                             permute_seed)
+        
+        policy_network.eval()
+        with torch.no_grad():
+            # Compute num of sat clauses
+            #num_sat = utils.num_sat_clauses_tensor(formula, buffer.action.detach().cpu().numpy()).detach()
+            num_sat = utils.num_sat_clauses_tensor(formula, buffer.action.detach()).detach()
+            # ::num_sat:: [batch_size]
+
+            # Compute baseline
+            baseline_val = torch.tensor(0, dtype=float).detach()
+            #if baseline is not None:
+            #    baseline_val = baseline(formula, num_variables, variables, policy_network, device, permute_vars, permute_seed).detach()
+
+        policy_network.train()
+        
+        # Get loss (mean over the batch)
+        mean_action_log_prob =  buffer.action_log_prob.sum(dim=-1).mean()
+        mean_entropy = buffer.entropy.sum(-1).mean() #.detach()
+        pg_loss = - ((num_sat.mean() - baseline_val) * mean_action_log_prob) 
+        pg_loss_with_ent = pg_loss - (entropy_weight * mean_entropy)
+        
         # Normalize loss for gradient accumulation
-        loss = episode_loss / accumulation_steps
-        num_sat = episode_num_sat / accumulation_steps
+        loss = pg_loss_with_ent / accumulation_episodes
+        #num_sat = num_sat / accumulation_episodes
         
         # Gradient accumulation
         loss.backward()
 
-        # Accumulate mean loss and mean num sat
-        mean_loss += loss.item()
-        mean_num_sat += num_sat
-
-        # Episode logging (logging every episode_log_step episodes)
-        if episode_log and ((episode % episode_log_step) == 0):
-            writer.add_scalar('loss', episode_loss.item(), episode, new_style=True)
-            writer.add_scalar('num_sat', episode_num_sat, episode, new_style=True)
-
-            for (prob_0, prob_1) in e_train.buffer.action_softmax[0]:
-                writer.add_scalar('prob_0', prob_0.item(), episode, new_style=True)
-                writer.add_scalar('prob_1', prob_1.item(), episode, new_style=True)
-
         # Perform optimization step after accumulating gradients
-        if (episode % accumulation_steps) == 0:
-            
-            # Optimizer step
+        if (episode % accumulation_episodes) == 0:
             if clip_grad is not None:
                 nn.utils.clip_grad_norm_(policy_network.parameters(), clip_grad) 
             optimizer.step()
             optimizer.zero_grad()
-            optim_step += 1
+        
+        # Logging
+        if (episode % log_episodes) == 0:
 
-            # Validation
+            num_sat_mean = num_sat.mean().item()
+
+            # Log values to screen
+            print(f'\nEpisode: {episode}, num_sat: {num_sat_mean}')
+            print('pg_loss: ({} - {}) * {} = {}'.format(num_sat_mean,
+                                                        baseline_val.item(),
+                                                        mean_action_log_prob.item(),
+                                                        pg_loss.item()))
+            print('pg_loss + entropy: {} + ({} * {}) = {}'.format(pg_loss.item(),
+                                                                entropy_weight,
+                                                                mean_entropy.item(),
+                                                                pg_loss_with_ent.item()))
+            
+            if writer is not None:
+                writer.add_scalar('num_sat', num_sat_mean, episode, new_style=True)
+                writer.add_scalar('pg_loss', pg_loss.item(), episode, new_style=True)
+                writer.add_scalar('pg_loss_with_ent', pg_loss_with_ent.item(), episode, new_style=True)
+                writer.add_scalar('log_prob', mean_action_log_prob.item(), episode, new_style=True)
+                writer.add_scalar('baseline', baseline_val.item(), episode, new_style=True)
+                writer.add_scalar('entropy/entropy', mean_entropy.item(), episode, new_style=True)
+                writer.add_scalar('entropy/w*entropy', (entropy_weight * mean_entropy).item(), episode, new_style=True)
+
+
+        # Validation
+        if (episode % eval_episodes) == 0:
+            print(f'\n-------------------------------------------------')
+            print(f'Evaluation in episode: {episode}. Num of sat clauses:')
             policy_network.eval()
             with torch.no_grad():
-                val_loss, val_num_sat, val_assignment = eval(formula,
-                                                            num_variables,
-                                                            variables,
-                                                            policy_network,
-                                                            device,
-                                                            strategy = 'greedy',
-                                                            batch_size = 1,
-                                                            permute_vars = permute_vars,
-                                                            permute_seed = permute_seed)
+                
+                for strat in eval_strategies:
+                    #TODO: Do not allow negative values for strat
+                    buffer = run_episode(num_variables = num_variables,
+                                        policy_network = policy_network,
+                                        device = device,
+                                        dec_init_state = dec_init_state,
+                                        dec_vars = dec_vars,
+                                        dec_context = dec_context,
+                                        init_action = init_action,
+                                        strategy = 'greedy' if strat == 0 else 'sampled',
+                                        batch_size = 1 if strat == 0 else strat,
+                                        permute_vars = permute_vars,
+                                        permute_seed = permute_seed)
+            
+                    # Compute num of sat clauses
+                    num_sat = utils.num_sat_clauses_tensor(formula, buffer.action.detach()).detach()
+                    # ::num_sat:: [batch_size]
 
-
+                    # Log values to screen
+                    if strat == 0:
+                        number_of_sat = num_sat.item()
+                        print(f'\tGreedy: {number_of_sat}.')
+                    else:
+                        number_of_sat = num_sat.max().item()
+                        print(f'\tBest of {strat} samples: {number_of_sat}.')
+                    
+                    if writer is not None:
+                        writer.add_scalar(f"eval/{'greedy' if strat == 0 else 'sampled'}{'' if strat == 0 else '-'+str(strat)}",
+                                          number_of_sat, episode, new_style=True)
+                            
+            print(f'\n-------------------------------------------------')
             policy_network.train()
 
-            # Optimizer logging (logging every accumulation_step * optimizer_log_step episodes, e.x., every optimizer step when optimizer_log_step=1)
-            if optimizer_log and ((optim_step % optimizer_log_step) == 0):
-                writer_opt.add_scalar('mean_loss', mean_loss, episode, new_style=True)
-                writer_opt.add_scalar('mean_num_sat', mean_num_sat, episode, new_style=True)
-                writer_opt.add_scalar('val_loss', val_loss, episode, new_style=True)
-                writer_opt.add_scalar('val_num_sat', val_num_sat, episode, new_style=True)
 
-            # Trackers (every accumulation_step episodes)
-            #history_loss.append(mean_loss)
-            #history_num_sat.append(mean_num_sat)
-            #history_loss_val.append(val_loss)
-            #history_num_sat_val.append(val_num_sat)
-            
-        
-            if verbose == 2 or verbose == 3 or ((verbose == 1) and (episode == num_episodes)):
-                print(f'\nGreedy actions (train): {assignment}')
-                print(f'\nGreedy actions (val): {val_assignment}')
 
-                print('Optim step {}, Episode [{}/{}], Mean loss {:.4f},  Mean num sat {:.4f}, Val loss {:.4f}, Val num sat {:.4f}' 
-                        .format(optim_step, episode, num_episodes, mean_loss, mean_num_sat, val_loss, val_num_sat))
-            
-        
-            if raytune:
-                with tune.checkpoint_dir(episode) as checkpoint_dir:
-                    path = os.path.join(checkpoint_dir, "checkpoint")
-                    torch.save((policy_network.state_dict(), optimizer.state_dict()), path)
 
-                tune.report(optim_step=optim_step, episode=episode, loss=mean_loss, num_sat=mean_num_sat, num_sat_val=val_num_sat)
 
-            # Reset 
-            mean_loss = 0
-            mean_num_sat = 0
+        # for prob in buffer.action_probs[0]:
+        #     writer.add_scalar('prob', prob.item(), episode, new_style=True)
+
+        # if dec_output_size == 1:
+
+        # else:
+        #     writer.add_scalars('probs', {'var'+str(i): probs[i] for i in range(5)}, episode, new_style=True)
+
+        # for i in range(num_variables):
+        #     write.add_scalar('probs/var'+str(i), probs[i], episode, new_style=True)
+        #     write.add_scalar('probs/var'+str(i), probs[i], episode, new_style=True)
+
+
+            # if raytune:
+            #     #with tune.checkpoint_dir(episode) as checkpoint_dir:
+            #     #    path = os.path.join(checkpoint_dir, "checkpoint")
+            #     #    torch.save((policy_network.state_dict(), optimizer.state_dict()), path)
+
+            #     ray_checkpoints_path = os.path.join('ray_results/checkpoints')
+            #     if not os.path.exists(ray_checkpoints_path):
+            #         os.makedirs(ray_checkpoints_path)
+
+            #     #path = "/Users/omargutierrez/Documents/Code/learning_sat_solvers/my_model"
+            #     #os.makedirs("my_model", exist_ok=True)
+            #     torch.save((policy_network.state_dict(), optimizer.state_dict()), 
+            #                 os.path.join(ray_checkpoints_path, "checkpoint.pt"))
+            #     checkpoint = Checkpoint.from_directory(ray_checkpoints_path)
+                
+
+            #     session.report({'optim_step':optim_step, 
+            #                     'episode':episode,
+            #                     'loss':mean_loss,
+            #                     'num_sat':mean_num_sat,
+            #                     'num_sat_val':val_num_sat},
+            #                     checkpoint=checkpoint)
+
     
-    if episode_log:
-        writer.close()
-    if optimizer_log:
-        writer_opt.close()
+ 
