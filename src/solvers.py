@@ -49,19 +49,6 @@ def minisat_solver(n, formula):
     return assignment, is_sat
         
 
-
-
-# log_dir = 'logs_tb'
-
-# run_id = time.strftime("%Y%m%dT%H%M%S")
-# run_name = 'n' + str(num_variables)
-
-# if tensorboard_on:
-#     #log_dir = './outputs/' + experiment_name + '/runs/n' + str(num_variables) +'/'+str(r)
-#     #log_dir = './outputs/' + runname
-#     writer = SummaryWriter(log_dir = os.path.join(log_dir, exp_name, run_id + run_name))
-
-
 def get_var_initializer(var_initializer):
     initial_var_class = {"BasicVar": BasicVar}.get(var_initializer, None)
     if initial_var_class is None:
@@ -211,6 +198,7 @@ def pg_solver(config):
           eval_episodes = config['eval_episodes'],
           eval_strategies = config['eval_strategies'], # 0 for greedy, i < 0 takes i samples and returns the best one.
           writer = writer,  # Tensorboard writer
+          extra_logging = config['extra_logging'],
           run_name = f"{config['run_name']}-{config['run_id']}",
           progress_bar = False)
 

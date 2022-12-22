@@ -4,6 +4,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.distributions as distributions
 
+from src.initializers.state_initializer import TrainableState
 import src.utils as utils
 from src.utils import sampling_assignment
 
@@ -199,6 +200,7 @@ def train(formula,
           eval_episodes=100,
           eval_strategies=[0, 10], # 0 for greedy, i < 0 takes i samples and returns the best one.
           writer = None,  # Tensorboard writer
+          extra_logging = False,
           run_name = None,
           progress_bar = False):
     """ Train Enconder-Decoder policy following Policy Gradient Theorem
@@ -320,6 +322,13 @@ def train(formula,
                 writer.add_scalar('entropy/entropy', mean_entropy.item(), episode, new_style=True)
                 writer.add_scalar('entropy/w*entropy', (entropy_weight * mean_entropy).item(), episode, new_style=True)
 
+                if extra_logging:
+                    writer.add_histogram('histogram/action_logits', buffer.action_logits, episode)
+                    writer.add_histogram('histogram/action_probs', buffer.action_probs, episode)
+                    
+                    if type(policy_network.dec_state_initializer) == TrainableState:
+                        writer.add_histogram('params/init_state', policy_network.dec_state_initializer.h, episode)
+
 
         # Validation
         if (episode % eval_episodes) == 0:
@@ -357,6 +366,21 @@ def train(formula,
                     if writer is not None:
                         writer.add_scalar(f"eval/{'greedy' if strat == 0 else 'sampled'}{'' if strat == 0 else '-'+str(strat)}",
                                           number_of_sat, episode, new_style=True)
+                
+            
+                    #  for v in num_variables:
+        #                 writer.add_scalars('buffer/actions', {'xsinx':i*np.sin(i/r),
+        #                                                         'xcosx':i*np.cos(i/r),
+        #                                                         'tanx': np.tan(i/r)}, i)
+                        
+        #             writer.add_scalars('buffer/action_logits', {'xsinx':i*np.sin(i/r),
+        #                                                         'xcosx':i*np.cos(i/r),
+        #                                                         'tanx': np.tan(i/r)}, i)
+        # self.action_logits = torch.empty(size=(batch_size, num_variables, dec_output_size))
+        # # ::buffer_action_logits:: [batch_size, seq_len=num_variables, feature_size=1or2]
+        # self.action_probs = torch.empty(size=(batch_size, num_variables, dec_output_size))
+        # # ::buffer_action_probs:: [batch_size, seq_len=num_variables, feature_size=1or2]
+        # self.action = torch.empty(size=(batch_size, num_variables), dtype = torch.int64)
                             
             print(f'\n-------------------------------------------------')
             policy_network.train()

@@ -43,6 +43,7 @@ def get_config(new_config=None):
         "eval_episodes": 100,
         "eval_strategies": [0, 5],
         "tensorboard_on": True,
+        "extra_logging": False,  # log TrainableState's weights
         "raytune": False,
         "data_dir": None,
 
