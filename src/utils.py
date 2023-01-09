@@ -93,6 +93,39 @@ def assignment_eval(formula, assignment):
     return S.check_complete(positive_lits=a)
 
 
+def dimacs2list(dimacs_path):
+    '''Reads a cnf file and returns the CNF formula
+    in numpy format. 
+        Args:
+            dimacs_file (str): path to the DIMACS file.
+        Returns:
+            n (int): Number of variables in the formula.
+            m (int): Number of clauses in the formula.
+            formula (list): CNF formula.
+    '''
+    with open(dimacs_path, 'r') as f:
+        dimacs = f.read()
+
+    formula = []
+    for line in dimacs.split('\n'):
+        line = line.split()
+        if line[0] == 'p':
+            n = int(line[2])
+            m = int(line[3])
+        elif len(line) != 0 and line[0] not in ("p","c","%"):
+            clause = []
+            for literal in line:
+                literal = int(literal)
+                if literal == 0:
+                    break
+                else:
+                    clause.append(literal)
+            formula.append(clause)
+        elif line[0] == '%':
+            break
+    return n, m, formula
+
+
 
 
 
@@ -186,37 +219,7 @@ def random_assignment(n):
     return assignment
 
 
-def dimacs2list(dimacs_path):
-    '''Reads a cnf file and returns the CNF formula
-    in numpy format. 
-        Args:
-            dimacs_file (str): path to the DIMACS file.
-        Returns:
-            n (int): Number of variables in the formula.
-            m (int): Number of clauses in the formula.
-            formula (list): CNF formula.
-    '''
-    with open(dimacs_path, 'r') as f:
-        dimacs = f.read()
 
-    formula = []
-    for line in dimacs.split('\n'):
-        line = line.split()
-        if line[0] == 'p':
-            n = int(line[2])
-            m = int(line[3])
-        if len(line) != 0 and line[0] not in ("p","c","%"):
-            clause = []
-            for literal in line:
-                literal = int(literal)
-                if literal == 0:
-                    break
-                else:
-                    clause.append(literal)
-            formula.append(clause)
-        elif line[0] == '%':
-            break
-    return n, m, formula
 
 
 def greedy_strategy(action_logits):
