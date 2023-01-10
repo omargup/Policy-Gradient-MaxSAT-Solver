@@ -30,6 +30,7 @@ class BaseCNFGenerator():
                 for literal in clause:
                     f.write(f"{literal} ")
                 f.write("0\n")
+            f.write(f"%")
 
 
 class URGenerator(BaseCNFGenerator):
@@ -79,7 +80,7 @@ class URGenerator(BaseCNFGenerator):
         else:
             m_name = f"_minm={self.min_m:04d}_maxm={self.max_m:04d}"
 
-        filename = dir_name + n_name + k_name + m_name + f"_i={i}" + ".dimacs"
+        filename = dir_name + n_name + k_name + m_name + f"_i={i}" + ".cnf"
         
         return filename
 
@@ -139,7 +140,7 @@ class SRGenerator(BaseCNFGenerator):
         else:
             s_name = f"_s=F"
 
-        filename = dir_name + n_name + "_1" + b_name + g_name + s_name + f"_i={i}" + ".dimacs"
+        filename = dir_name + n_name + "_1" + b_name + g_name + s_name + f"_i={i}" + ".cnf"
         
         return filename
 
