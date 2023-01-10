@@ -15,6 +15,7 @@
 - pip install -U tbparse
 - pip install seaborn
 - pip install -U "ray[tune]"
+- pip install networkx
 
 ## Benchmark instances
 
