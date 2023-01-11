@@ -7,13 +7,11 @@ import src.train as train
 from src.architecture.embeddings import ProjEmbedding, OneHotProjEmbedding, IdentityEmbedding
 from src.architecture.encoder_decoder import EncoderDecoder
 from src.architecture.decoders import RNNDecoder
+from src.architecture.baselines import BaselineRollout
 
 from src.initializers.var_initializer import BasicVar
 from src.initializers.context_initializer import EmptyContext
 from src.initializers.state_initializer import ZerosState, TrainableState
-
-# from src.baselines import BaselineRollout
-
 
 from src.train import train
 import src.utils as utils
@@ -169,15 +167,18 @@ def pg_solver(config):
 #                 optimizer.load_state_dict(optimizer_state)
            
 
-    #TODO: no dropout when layers==1
+    
 
     variables = None
 
+    # TODO: Support different baselines
     baseline = None
-    #if config['baseline'] is not None:
-    #    baseline = BaselineRollout(config['baseline'])
+    if config['baseline'] is not None:
+        if (type(config['baseline']) != int) or (config['baseline'] < -1) or (config['baseline'] == 0):
+            raise ValueError(f"{config['baseline']} is not a valid baseline value.")
+        baseline = BaselineRollout(config['baseline'])
+        
 
-    
     train(formula= formula,
           num_variables=num_variables,
           variables=variables,
