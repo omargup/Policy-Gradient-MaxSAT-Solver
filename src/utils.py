@@ -1,5 +1,7 @@
 import torch
 import torch.distributions as distributions
+from torch_geometric.data import Data
+
 import numpy as np
 from tbparse import SummaryReader
 import seaborn as sns; sns.set_theme()
@@ -124,6 +126,45 @@ def dimacs2list(dimacs_path):
         elif line[0] == '%':
             break
     return n, m, formula
+
+
+def dimacs2graph(dimacs_path):
+    """
+    Builds a graph from a dimacs file. The returned graph has the following elements:
+        - 2n+m 1-dimensional nodes {0, 1, 2, ..., 2n+m-1} representing x_{0}, x_{1}, ..., x_{n-1}, -x_{0}, -x_{1},..., -x{n-1}, c_{0}, c_{1},..., c_{m-1}.
+        - A set of edges between each literal and its negation, e.g.: the edge from x_{0} to -x_{0}.
+        - Edges between literals and clauses.
+    """
+
+    # Load the formula in dimacs format and convert to list 
+    n, m, formula = dimacs2list(dimacs_path = dimacs_path)
+
+    # Nodes represented by a 2n+m x 1 tensor
+    nodes = torch.tensor([[u] for u in range(2 * n + m)], dtype=torch.long)
+
+    # Edges between literals and their negations
+    edges = []
+    for u in range(n):
+        edges.append([u, u+n])
+        edges.append([u+n, u])
+
+    # Edges between litarals and clauses
+    for c, clause in enumerate(formula):
+        clause_node = 2 * n + c
+        for lit in clause:
+            literal_node = lit-1 if lit > 0 else -lit + n -1
+            edges.append([clause_node, literal_node])
+            edges.append([literal_node, clause_node])
+    
+    # Edges
+    edge_index = torch.tensor(edges, dtype=torch.long)
+
+    graph = Data(x=nodes,
+                edge_index=edge_index.t().contiguous())
+
+    graph.validate(raise_on_error=True)
+
+    return n, m, graph
 
 
 
