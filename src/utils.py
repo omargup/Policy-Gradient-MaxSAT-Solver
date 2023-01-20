@@ -5,6 +5,7 @@ from torch_geometric.utils.convert import to_networkx
 
 import numpy as np
 import networkx as nx
+from sklearn.manifold import TSNE
 
 from tbparse import SummaryReader
 import seaborn as sns; sns.set_theme()
@@ -233,10 +234,76 @@ def graph2png(graph, n, m, filename, walk=None,
                             font_size=font_size,
                             alpha=1.0,
                             font_color='black')
-     
-    
+         
     plt.axis("off")
     fig.savefig(filename)
+
+
+@torch.no_grad()
+def node_emb2low_dim(graph, n, model, device, filename, dim=2, random_state=None):
+    model.eval()
+    z = model(torch.arange(graph.num_nodes, device=device))
+    z = TSNE(n_components=dim, init='pca', learning_rate='auto').fit_transform(z.cpu().numpy())
+    #y = graph.node_type  #.cpu().numpy()
+    
+    # Creating figure
+    fig = plt.figure(figsize=(10, 10), facecolor='white')
+
+    if dim==3:
+        ax = fig.add_subplot(projection='3d')
+
+        ax.scatter(z[0:n, 0],
+                z[0:n, 1],
+                z[0:n, 2],
+                s=20, 
+                color='tab:green',
+                marker='o')
+        
+        ax.scatter(z[n:2*n, 0],
+                z[n:2*n, 1],
+                z[n:2*n, 2],
+                s=20, 
+                color='tab:red',
+                marker='o')
+
+        ax.scatter(z[2*n:, 0],
+                z[2*n:, 1],
+                z[2*n:, 2],
+                s=20, 
+                color='tab:blue',
+                marker='o')
+    
+    elif dim==2:
+        ax = fig.add_subplot()
+
+        ax.scatter(z[0:n, 0],
+                   z[0:n, 1],
+                   s=30, 
+                   color='tab:green',
+                   alpha=0.5,
+                   marker='o')
+        
+        ax.scatter(z[n:2*n, 0],
+                   z[n:2*n, 1],
+                   s=30, 
+                   color='tab:red',
+                   alpha=0.5,
+                   marker='o')
+
+        ax.scatter(z[2*n:, 0],
+                   z[2*n:, 1],
+                   s=30, 
+                   color='tab:blue',
+                   alpha=0.5,
+                   marker='o')
+        
+    #plt.title("simple 3D scatter plot")
+    #plt.axis('off')
+    plt.axis("off")
+    #plt.show()
+    fig.savefig(filename)
+
+
 
 
 #sns.choose_diverging_palette(as_cmap=False)
