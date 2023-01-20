@@ -1,8 +1,11 @@
 import torch
 import torch.distributions as distributions
 from torch_geometric.data import Data
+from torch_geometric.utils.convert import to_networkx
 
 import numpy as np
+import networkx as nx
+
 from tbparse import SummaryReader
 import seaborn as sns; sns.set_theme()
 import pandas as pd
@@ -167,7 +170,73 @@ def dimacs2graph(dimacs_path):
     return n, m, graph
 
 
+def graph2png(graph, n, m, filename, walk=None,
+              seed=None, node_size=400, font_size=10):
+    """
+    Saves the plot of the graph representation of a SAT instance.
+    """
+    # TODO: add random_generator
 
+    # Node names and types
+    node_type = []
+    node_name = []
+    for u in range(n):
+        node_type.append("p")
+        node_name.append(f"x{u+1}")
+    for u in range(n):
+        node_type.append("n")
+        node_name.append(f"-x{u+1}")
+    for u in range(m):
+        node_type.append("c")
+        node_name.append(f"c{u+1}")
+    
+    G = to_networkx(data= graph, to_undirected= True)
+    pos = nx.spring_layout(G, center=[0.5, 0.5])
+    nx.set_node_attributes(G, pos, 'pos')
+    nx.set_node_attributes(G, dict(zip(G.nodes(), node_type)), 'node_type')
+    nx.set_node_attributes(G, dict(zip(G.nodes(), node_name)), 'node_name')
+
+
+    fig = plt.figure(figsize=(10, 10), facecolor='white')
+    color_state_map = {'p': "tab:green", 'n': 'tab:red', 'c': 'tab:blue'}
+
+    pos = nx.get_node_attributes(G, 'pos')
+
+    nx.draw_networkx_edges(G, pos,
+                        width=1,
+                        edge_color='tab:gray')
+
+    if walk is not None:
+        w = nx.path_graph(len(walk))
+        nx.set_node_attributes(w, {idx: pos[node_id] for idx, node_id in enumerate(walk)}, 'pos')
+        nx.draw_networkx_edges(w,
+                               pos=nx.get_node_attributes(w, 'pos'),
+                               width=6,
+                               edge_color='tab:purple',
+                               alpha=0.5)                         
+
+    nx.draw_networkx_nodes(G, pos,
+                        node_color='white',
+                        node_size=node_size,
+                        linewidths=1,
+                        edgecolors=[color_state_map[node[1]['node_type']] 
+                        for node in G.nodes(data=True)])
+
+    nx.draw_networkx_nodes(G, pos,
+                        node_color=[color_state_map[node[1]['node_type']] 
+                        for node in G.nodes(data=True)],
+                        alpha=0.3,
+                        node_size=node_size)
+
+    nx.draw_networkx_labels(G, pos,
+                            labels=nx.get_node_attributes(G, 'node_name'),
+                            font_size=font_size,
+                            alpha=1.0,
+                            font_color='black')
+     
+    
+    plt.axis("off")
+    fig.savefig(filename)
 
 
 #sns.choose_diverging_palette(as_cmap=False)
