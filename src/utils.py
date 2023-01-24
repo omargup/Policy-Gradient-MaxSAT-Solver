@@ -304,6 +304,21 @@ def node_emb2low_dim(graph, n, model, device, filename, dim=2, random_state=None
     fig.savefig(filename)
 
 
+class EntropyWeightDecay:
+    """
+    The first call to update_w(), returns `max` value, then the weight
+    is decreasing. At step `steps`, the weight has the minimum `min` value
+    and remains so.
+    """
+    def __init__(self, max, min, steps):
+        self.min = float(min)
+        self.max = float(max)
+        self.step_size = (self.max - self.min) / float(steps-1)
+        self.weight = self.max + self.step_size
+
+    def update_w(self):
+        self.weight = max(self.weight - self.step_size, self.min)
+        return self.weight
 
 
 #sns.choose_diverging_palette(as_cmap=False)
