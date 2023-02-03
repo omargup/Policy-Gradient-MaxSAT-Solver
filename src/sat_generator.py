@@ -63,7 +63,7 @@ class URGenerator(BaseCNFGenerator):
     
 
     def get_filename(self, dir_name, i):
-        dir_name = f"{dir_name}/ur/ur"
+        dir_name = f"{dir_name}/rand"
         
         if self.min_n == self.max_n:
             n_name = f"_n={self.min_n:04d}"
@@ -131,7 +131,7 @@ class SRGenerator(BaseCNFGenerator):
     
 
     def get_filename(self, dir_name, sat, i):
-        dir_name = f"{dir_name}/sr/sr"
+        dir_name = f"{dir_name}/sr"
         n_name = f"_n={self.n:04d}"
         b_name = f"_pb={self.p_b:.2f}"
         g_name = f"_pg={self.p_g:.2f}"
