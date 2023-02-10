@@ -322,11 +322,10 @@ def node2vec(dimacs_path,
     return node_emb
 
 
-@torch.no_grad()
-def node_emb2low_dim(graph, n, model, device, filename, dim=2, random_state=None):
-    model.eval()
-    z = model(torch.arange(graph.num_nodes, device=device))
-    z = TSNE(n_components=dim, init='pca', learning_rate='auto').fit_transform(z.cpu().numpy())
+def node_emb2low_dim(node_embeddings, n, filename, dim=2, random_state=None):
+    #TODO: Random state
+    
+    emb = TSNE(n_components=dim, init='pca', learning_rate='auto').fit_transform(node_embeddings.cpu().numpy())
     #y = graph.node_type  #.cpu().numpy()
     
     # Creating figure
@@ -335,46 +334,46 @@ def node_emb2low_dim(graph, n, model, device, filename, dim=2, random_state=None
     if dim==3:
         ax = fig.add_subplot(projection='3d')
 
-        ax.scatter(z[0:n, 0],
-                z[0:n, 1],
-                z[0:n, 2],
-                s=20, 
-                color='tab:green',
-                marker='o')
+        ax.scatter(emb[0:n, 0],
+                   emb[0:n, 1],
+                   emb[0:n, 2],
+                   s=20, 
+                   color='tab:green',
+                   marker='o')
         
-        ax.scatter(z[n:2*n, 0],
-                z[n:2*n, 1],
-                z[n:2*n, 2],
-                s=20, 
-                color='tab:red',
-                marker='o')
+        ax.scatter(emb[n:2*n, 0],
+                   emb[n:2*n, 1],
+                   emb[n:2*n, 2],
+                   s=20, 
+                   color='tab:red',
+                   marker='o')
 
-        ax.scatter(z[2*n:, 0],
-                z[2*n:, 1],
-                z[2*n:, 2],
-                s=20, 
-                color='tab:blue',
-                marker='o')
+        ax.scatter(emb[2*n:, 0],
+                   emb[2*n:, 1],
+                   emb[2*n:, 2],
+                   s=20, 
+                   color='tab:blue',
+                   marker='o')
     
     elif dim==2:
         ax = fig.add_subplot()
 
-        ax.scatter(z[0:n, 0],
-                   z[0:n, 1],
+        ax.scatter(emb[0:n, 0],
+                   emb[0:n, 1],
                    s=30, 
                    color='tab:green',
                    alpha=0.5,
                    marker='o')
         
-        ax.scatter(z[n:2*n, 0],
-                   z[n:2*n, 1],
+        ax.scatter(emb[n:2*n, 0],
+                   emb[n:2*n, 1],
                    s=30, 
                    color='tab:red',
                    alpha=0.5,
                    marker='o')
 
-        ax.scatter(z[2*n:, 0],
-                   z[2*n:, 1],
+        ax.scatter(emb[2*n:, 0],
+                   emb[2*n:, 1],
                    s=30, 
                    color='tab:blue',
                    alpha=0.5,
@@ -382,7 +381,6 @@ def node_emb2low_dim(graph, n, model, device, filename, dim=2, random_state=None
         
     #plt.title("simple 3D scatter plot")
     #plt.axis('off')
-    plt.axis("off")
     #plt.show()
     fig.savefig(filename)
 
