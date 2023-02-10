@@ -13,6 +13,11 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from PyMiniSolvers import minisolvers
 
+#for node2vec
+from torch_geometric.nn import Node2Vec
+from tqdm import tqdm
+import os
+
 
 def params_summary(model):
     for name, param in model.named_parameters():
@@ -237,6 +242,84 @@ def graph2png(graph, n, m, filename, walk=None,
          
     plt.axis("off")
     fig.savefig(filename)
+
+
+def n2v_train_epoch(model, loader, optimizer):
+    model.train()
+    epoch_loss = 0
+    for pos_rw, neg_rw in tqdm(loader):
+        optimizer.zero_grad()
+        loss = model.loss(pos_rw.to(device), neg_rw.to(device))
+        loss.backward()
+        optimizer.step()
+        epoch_loss += loss.item()
+    return epoch_loss / len(loader)
+
+def node2vec(dimacs_path,
+             device,
+             embedding_dim=64,
+             walk_length=20,
+             context_size=10,
+             walks_per_node=10,
+             p=1,
+             q=1,
+             batch_size=32,
+             lr=0.01,
+             num_epochs=100,
+             pretrained=True,
+             save_dir='n2v_emb'):
+    """
+    Computes node2vec embeddings.
+    If `pretrained`is True, tries to read in the `save_dir` directory a
+    file with the precumputed embeddings, if `pretrained` is False or the file
+    does not exists, node2vec embeddings are computed. Node embeddings
+    are saved with the same name than the dimacs file but with extention '.pt'.
+    """
+    os.makedirs(save_dir, exist_ok=True)
+    tail = os.path.split(dimacs_path)[1]  # returns filename and extension
+    filename = os.path.splitext(tail)[0]  # returns filename
+    emb_path = os.path.join(save_dir, filename + ".pt")
+    
+    if pretrained and os.path.isfile(emb_path):
+        node_emb = torch.load(emb_path)
+        if node_emb.shape[-1] != embedding_dim:
+            raise ValueError(f'The embedding dimension ({node_emb.shape[-1]}) in the saved file  must the same than `embedding_dim` ({embedding_dim})')
+        return node_emb
+
+    print(f"Learning node2vec embeddings for the formula '{dimacs_path}'.")
+    # Load the formula in dimacs format and convert to torch graph
+    #n, m, graph = utils.dimacs2graph(dimacs_path=dimacs_path)
+    n, m, graph = dimacs2graph(dimacs_path=dimacs_path)
+    graph = graph.to(device)
+
+    # Model definition
+    model = Node2Vec(edge_index=graph.edge_index,
+                     embedding_dim=embedding_dim,
+                     walk_length=walk_length,
+                     context_size=context_size,
+                     walks_per_node=walks_per_node,
+                     num_negative_samples=1,
+                     p=p,
+                     q=q,
+                     sparse=True).to(device)
+
+    loader = model.loader(batch_size=batch_size, shuffle=True, num_workers=4)
+    optimizer = torch.optim.SparseAdam(list(model.parameters()), lr=lr)
+
+    # Training
+    for epoch in range(num_epochs):
+        loss = n2v_train_epoch(model, loader, optimizer)
+        print(f'Epoch: {epoch+1:02d}, Loss: {loss:.4f}')
+
+    # Getting node embeddings
+    with torch.no_grad():
+        model.eval()
+        embeddings = model(torch.arange(graph.num_nodes, device=device))
+        # ::embeddings:: [seq_len=2n+m, feature_size=emb_dim]
+
+    torch.save(embeddings, emb_path)
+    node_emb = torch.load(emb_path)
+    return node_emb
 
 
 @torch.no_grad()
