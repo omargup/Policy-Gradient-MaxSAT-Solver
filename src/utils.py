@@ -244,7 +244,7 @@ def graph2png(graph, n, m, filename, walk=None,
     fig.savefig(filename)
 
 
-def n2v_train_epoch(model, loader, optimizer):
+def n2v_train_epoch(model, loader, optimizer, device):
     model.train()
     epoch_loss = 0
     for pos_rw, neg_rw in tqdm(loader):
@@ -308,7 +308,7 @@ def node2vec(dimacs_path,
 
     # Training
     for epoch in range(num_epochs):
-        loss = n2v_train_epoch(model, loader, optimizer)
+        loss = n2v_train_epoch(model, loader, optimizer, device)
         print(f'Epoch: {epoch+1:02d}, Loss: {loss:.4f}')
 
     # Getting node embeddings
@@ -324,7 +324,7 @@ def node2vec(dimacs_path,
 
 def node_emb2low_dim(node_embeddings, n, filename, dim=2, random_state=None):
     #TODO: Random state
-    
+
     emb = TSNE(n_components=dim, init='pca', learning_rate='auto').fit_transform(node_embeddings.cpu().numpy())
     #y = graph.node_type  #.cpu().numpy()
     
