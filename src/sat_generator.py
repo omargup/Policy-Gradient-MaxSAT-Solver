@@ -62,8 +62,13 @@ class URGenerator(BaseCNFGenerator):
         return n, m, r, formula
     
 
-    def get_filename(self, dir_name, i):
-        dir_name = f"{dir_name}/rand"
+    def get_filename(self, dir_name, data_name, i):
+        """
+        dir_name : Name of the directory.
+        data_name : Name of the dataset.
+        i : Number of the instance.
+        """
+        dir_name = f"{dir_name}/{data_name}/"
         
         if self.min_n == self.max_n:
             n_name = f"_n={self.min_n:04d}"
@@ -80,11 +85,9 @@ class URGenerator(BaseCNFGenerator):
         else:
             m_name = f"_minm={self.min_m:04d}_maxm={self.max_m:04d}"
 
-        filename = dir_name + n_name + k_name + m_name + f"_i={i}" + ".cnf"
+        filename = dir_name + data_name + n_name + k_name + m_name + f"_i={i}" + ".cnf"
         
         return filename
-
-
 
 
 
@@ -130,8 +133,14 @@ class SRGenerator(BaseCNFGenerator):
         return self.n, m, r, formula      
     
 
-    def get_filename(self, dir_name, sat, i):
-        dir_name = f"{dir_name}/sr"
+    def get_filename(self, dir_name, data_name, sat, i):
+        """
+        dir_name : Name of the directory.
+        data_name : Name of the dataset.
+        sat : Whether the clause is sat or not. 
+        i : Number of the instance.
+        """
+        dir_name = f"{dir_name}/{data_name}/"
         n_name = f"_n={self.n:04d}"
         b_name = f"_pb={self.p_b:.2f}"
         g_name = f"_pg={self.p_g:.2f}"
@@ -140,7 +149,7 @@ class SRGenerator(BaseCNFGenerator):
         else:
             s_name = f"_s=F"
 
-        filename = dir_name + n_name + "_1" + b_name + g_name + s_name + f"_i={i}" + ".cnf"
+        filename = dir_name + data_name + n_name + "_1" + b_name + g_name + s_name + f"_i={i}" + ".cnf"
         
         return filename
 

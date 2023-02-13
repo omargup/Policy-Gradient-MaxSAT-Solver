@@ -17,7 +17,8 @@ def toy_dataset():
     print("Building toy_dataset")
 
     # Build Uniform random instances
-    dir_name = 'data/toy'
+    dir_name = 'data'
+    data_name = 'toy'
     n_list = [5, 10, 15]
     r_list = [1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0]
     k = 3
@@ -47,7 +48,7 @@ def toy_dataset():
                     sat_clauses += 1
 
                     # Saving the formula
-                    filename = sat_gen.get_filename(dir_name, sat_clauses)
+                    filename = sat_gen.get_filename(dir_name, data_name, sat_clauses)
                     sat_gen.save(n, formula, filename)
 
 
@@ -65,7 +66,8 @@ def rand_dataset():
     print("Building rand_dataset")
 
     # Build Uniform random instances
-    dir_name = 'data/rand'
+    dir_name = 'data'
+    data_name = 'rand'
     n_list = [20, 30, 40]
     r_list = [2.0, 2.5, 3.0, 3.5, 4.0, 4.5]
     k = 3
@@ -88,11 +90,11 @@ def rand_dataset():
                 n, m, r, formula = sat_gen.generate_formula()
 
                 # Saving the formula
-                filename = sat_gen.get_filename(dir_name, i)
+                filename = sat_gen.get_filename(dir_name, data_name, i)
                 sat_gen.save(n, formula, filename)
 
 
-def satrand_dataset():
+def sat_rand_dataset():
     """
     Builds a dataset with Satisfiable Random SAT Formulas.
     This function generates 5 uniform random sat instances
@@ -101,10 +103,11 @@ def satrand_dataset():
         n=[20, 30, 40]
         r=[2.0, 2.5, 3.0, 3.5, 4.0, 4.5]:
     """
-    print("Building satrand_dataset")
+    print("Building sat_rand_dataset")
 
     # Build Uniform random instances
-    dir_name = 'data/satrand'
+    dir_name = 'data'
+    data_name = 'sat_rand'
     n_list = [20, 30, 40]
     r_list = [2.0, 2.5, 3.0, 3.5, 4.0, 4.5]
     k = 3
@@ -134,7 +137,7 @@ def satrand_dataset():
                     sat_clauses += 1
 
                     # Saving the formula
-                    filename = sat_gen.get_filename(dir_name, sat_clauses)
+                    filename = sat_gen.get_filename(dir_name, data_name, sat_clauses)
                     sat_gen.save(n, formula, filename)
 
 
@@ -147,7 +150,8 @@ def sr_dataset():
     print("Building sr_dataset")
 
     # Build SR random instances
-    dir_name = 'data/sr'
+    dir_name = 'data'
+    data_name = 'sr'
     n_list = [20, 30, 40]
     p_bernoulli = 0.7 
     p_geometric = 0.4
@@ -166,16 +170,16 @@ def sr_dataset():
             n, m, r, [formula_unsat, formula_sat] = sat_gen.generate_formula()
 
             # Saving the sat formula.
-            filename = sat_gen.get_filename(dir_name, True, i)
+            filename = sat_gen.get_filename(dir_name, data_name, True, i)
             sat_gen.save(n, formula_sat, filename)
             
             # Saving the unsat formula
-            filename = sat_gen.get_filename(dir_name, False, i)
+            filename = sat_gen.get_filename(dir_name, data_name, False, i)
             sat_gen.save(n, formula_unsat, filename)
 
 
 if __name__ == '__main__':
     toy_dataset()
     rand_dataset()
-    satrand_dataset()
+    sat_rand_dataset()
     sr_dataset()
