@@ -201,5 +201,5 @@ Temporary Items
 .apdisk
 
 PyMiniSolvers/*
-logs/*
-outputs/*
+#logs/*
+#outputs/*
