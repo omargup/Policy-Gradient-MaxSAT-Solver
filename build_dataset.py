@@ -68,7 +68,7 @@ def rand_dataset():
     # Build Uniform random instances
     dir_name = 'data'
     data_name = 'rand'
-    n_list = [20, 30, 40]
+    n_list = [20, 30, 40, 50, 60, 70, 80, 90, 100]
     r_list = [2.0, 2.5, 3.0, 3.5, 4.0, 4.5]
     k = 3
     num_instances = 5
@@ -108,7 +108,7 @@ def sat_rand_dataset():
     # Build Uniform random instances
     dir_name = 'data'
     data_name = 'sat_rand'
-    n_list = [20, 30, 40]
+    n_list = [20, 30, 40, 50, 60, 70, 80, 90, 100]
     r_list = [2.0, 2.5, 3.0, 3.5, 4.0, 4.5]
     k = 3
     num_instances = 5
