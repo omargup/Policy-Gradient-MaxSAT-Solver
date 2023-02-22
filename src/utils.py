@@ -244,10 +244,10 @@ def graph2png(graph, n, m, filename, walk=None,
     fig.savefig(filename)
 
 
-def n2v_train_epoch(model, loader, optimizer, device):
+def n2v_train_epoch(model, loader, optimizer, device, progress_bar):
     model.train()
     epoch_loss = 0
-    for pos_rw, neg_rw in tqdm(loader):
+    for pos_rw, neg_rw in tqdm(loader, disable=not(progress_bar)):
         optimizer.zero_grad()
         loss = model.loss(pos_rw.to(device), neg_rw.to(device))
         loss.backward()
@@ -267,7 +267,8 @@ def node2vec(dimacs_path,
              lr=0.01,
              num_epochs=100,
              pretrained=True,
-             save_dir='n2v_emb'):
+             save_dir='n2v_emb',
+             verbose=2):
     """
     Computes node2vec embeddings.
     If `pretrained`is True, tries to read in the `save_dir` directory a
@@ -286,7 +287,8 @@ def node2vec(dimacs_path,
             raise ValueError(f'The embedding dimension ({node_emb.shape[-1]}) in the saved file  must the same than `embedding_dim` ({embedding_dim})')
         return node_emb
 
-    print(f"Learning node2vec embeddings for the formula '{dimacs_path}'.")
+    if (verbose == 1) or (verbose == 2):
+        print(f"\nLearning node2vec embeddings for the formula '{dimacs_path}'.")
     # Load the formula in dimacs format and convert to torch graph
     #n, m, graph = utils.dimacs2graph(dimacs_path=dimacs_path)
     n, m, graph = dimacs2graph(dimacs_path=dimacs_path)
@@ -303,13 +305,16 @@ def node2vec(dimacs_path,
                      q=q,
                      sparse=True).to(device)
 
-    loader = model.loader(batch_size=batch_size, shuffle=True, num_workers=4)
+    loader = model.loader(batch_size=batch_size, shuffle=True, num_workers=0)
     optimizer = torch.optim.SparseAdam(list(model.parameters()), lr=lr)
 
     # Training
     for epoch in range(num_epochs):
-        loss = n2v_train_epoch(model, loader, optimizer, device)
-        print(f'Epoch: {epoch+1:02d}, Loss: {loss:.4f}')
+        loss = n2v_train_epoch(model, loader, optimizer, device, progress_bar=True if verbose==2 else False)
+        if verbose == 2:
+            print(f'Epoch: {epoch+1:02d}, Loss: {loss:.4f}')
+        if (verbose == 1) and (epoch == num_epochs - 1):
+            print(f'Finish. Epoch: {epoch+1:02d}, Loss: {loss:.4f}')
 
     # Getting node embeddings
     with torch.no_grad():
