@@ -19,6 +19,7 @@ from tqdm import tqdm
 import os
 
 
+
 def params_summary(model):
     for name, param in model.named_parameters():
         if param.requires_grad:
@@ -405,6 +406,53 @@ class EntropyWeightDecay:
     def update_w(self):
         self.weight = max(self.weight - self.step_size, self.min)
         return self.weight
+
+
+
+
+
+
+
+def exp2plot(log_dir, img_path):
+    #log_dir = "logs/exp_full1"
+
+    reader = SummaryReader(log_dir, pivot=False, extra_columns={'dir_name'})
+    df = reader.tensors
+
+    # Keep only rows with tag == 'active_search'
+    df = df[df['tag'] == 'active_search']
+
+    # Keep only step and value columns
+    df = df[['step', 'value', 'dir_name']]
+
+    instances = df['dir_name'].unique()
+
+    df_dic = []
+    for instance in instances:
+        df_instance = df[df['dir_name'] == instance]
+        num_sat = df_instance['value'].max()
+        n, m, idx = instance.split("/")
+        df_dic.append({"n": int(n), "m": int(m), "num_sat": num_sat})
+
+
+    df_sat = pd.DataFrame.from_dict(df_dic)
+    df_sat.insert(2, "r", df_sat["m"] / df_sat["n"])
+    df_sat.insert(3, "frac_sat", df_sat["num_sat"] / df_sat["m"])
+
+    df_sat.drop('m', inplace=True, axis=1)
+    df_sat.drop('num_sat', inplace=True, axis=1)
+
+
+    plt.figure(figsize = (10,6))
+    sns.set_theme(style="whitegrid", palette="bright")
+    color_pallete = sns.color_palette("bright")
+    sns.lineplot(data=df_sat, x="r", y="frac_sat", hue="n", errorbar=('ci', 20), palette=color_pallete)
+    #ax.set(title='Variables assignments through episodes')
+    #ax.set_xticklabels([i for i in range(100, 5000+1, 500)])
+    plt.tight_layout()
+    #plt.savefig(img_path)
+    plt.show()
+
 
 
 #sns.choose_diverging_palette(as_cmap=False)
