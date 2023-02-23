@@ -267,26 +267,21 @@ def node2vec(dimacs_path,
              batch_size=32,
              lr=0.01,
              num_epochs=100,
-             pretrained=True,
-             save_dir='n2v_emb',
+             save_path='n2v_emb',
+             file_name='node_emb',
+             num_workers=0,
              verbose=2):
     """
     Computes node2vec embeddings.
-    If `pretrained`is True, tries to read in the `save_dir` directory a
-    file with the precumputed embeddings, if `pretrained` is False or the file
-    does not exists, node2vec embeddings are computed. Node embeddings
-    are saved with the same name than the dimacs file but with extention '.pt'.
-    """
-    os.makedirs(save_dir, exist_ok=True)
-    tail = os.path.split(dimacs_path)[1]  # returns filename and extension
-    filename = os.path.splitext(tail)[0]  # returns filename
-    emb_path = os.path.join(save_dir, filename + ".pt")
     
-    if pretrained and os.path.isfile(emb_path):
-        node_emb = torch.load(emb_path)
-        if node_emb.shape[-1] != embedding_dim:
-            raise ValueError(f'The embedding dimension ({node_emb.shape[-1]}) in the saved file  must the same than `embedding_dim` ({embedding_dim})')
-        return node_emb
+    PARAMETERS
+    ----------
+        verbose: int, {0,1,2}. 0 for no verbose, 2 for max verbose.
+
+    RETURNS
+    ----------
+        embeddings: Tensor. Node embeddings tensor with shape [2n+m, embedding_dim].
+    """
 
     if (verbose == 1) or (verbose == 2):
         print(f"\nLearning node2vec embeddings for the formula '{dimacs_path}'.")
@@ -306,7 +301,7 @@ def node2vec(dimacs_path,
                      q=q,
                      sparse=True).to(device)
 
-    loader = model.loader(batch_size=batch_size, shuffle=True, num_workers=0)
+    loader = model.loader(batch_size=batch_size, shuffle=True, num_workers=num_workers)
     optimizer = torch.optim.SparseAdam(list(model.parameters()), lr=lr)
 
     # Training
@@ -323,9 +318,11 @@ def node2vec(dimacs_path,
         embeddings = model(torch.arange(graph.num_nodes, device=device))
         # ::embeddings:: [seq_len=2n+m, feature_size=emb_dim]
 
+    # Save embeddings
+    emb_path = os.path.join(save_path, file_name + ".pt")
     torch.save(embeddings, emb_path)
-    node_emb = torch.load(emb_path)
-    return node_emb
+
+    return embeddings
 
 
 def node_emb2low_dim(node_embeddings, n, filename, dim=2, random_state=None):
