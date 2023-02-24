@@ -12,6 +12,59 @@ class BaseEmbedding(nn.Module):
         # X shape: [batch_size, seq_len, features_size]
         raise NotImplementedError
 
+
+class GeneralEmbedding(BaseEmbedding):
+    """ First, applies a linear transormation to each input, then
+    concatenates these transformation and aplies a final linear transformation.
+    If `context_size` is 0, `context_emb_size` will be 0.
+    """
+    def __init__(self,
+                 variable_size,
+                 variable_emb,
+                 assignment_size,
+                 assignment_emb,
+                 context_size,
+                 context_emb,
+                 out_emb,
+                 *args, **kwargs):
+        super(GeneralEmbedding, self).__init__()
+        self.variable_proj = nn.Linear(variable_size, variable_emb)
+        self.assignment_proj = nn.Linear(assignment_size, assignment_emb)
+        self.context_size = context_size
+        if context_size != 0:
+            # if context is empty, context_emb_size is 0.
+            self.context_proj = nn.Linear(context_size, context_emb)
+        if context_size == 0:
+            context_emb = 0
+        input_size = variable_emb + assignment_emb + context_emb    
+        self.out_emb =  nn.Linear(input_size, out_emb)
+
+    def forward(self, variable, assignment, context):
+        # variable: [batch_size, seq_len, features_size], could be n or n2v_emb_size
+        # assignment: [batch_size, seq_len, features_size=3]
+        # context: [batch_size, seq_len, features_size], feature_size could be 0.
+
+        assert (variable.dim() == 3) and (variable.dtype == torch.float), \
+            f"In GeneralEmbedding's input. var dim: {variable.dim()}, shape: {variable.shape}, dtype: {variable.dtype}."
+        assert (assignment.dim() == 3) and (assignment.dtype == torch.float), \
+            f"In GeneralEmbedding's input. assignment dim: {assignment.dim()}, shape: {assignment.shape}, dtype: {assignment.dtype}."
+        assert (context.dim() == 3) and (context.dtype == torch.float), \
+            f"In GeneralEmbedding's input. context dim: {context.dim()}, var shape: {context.shape}, dtype: {context.dtype}."
+
+        v = self.variable_proj(variable)
+        a = self.assignment_proj(assignment)
+        if self.context_size != 0:
+            c = self.context_proj(context)
+            input_vec = torch.cat((v,a,c), dim=-1)
+        else:
+            input_vec = torch.cat((v,a), dim=-1)
+        emb = self.out_emb(input_vec)
+
+        return emb
+        # X shape: [batch_size, seq_len, features_size=output_emb]
+
+
+
 class ProjEmbedding(BaseEmbedding):
     """Applies a linear transformation"""
     def __init__(self, input_size, embedding_size=128, *args, **kwargs):
