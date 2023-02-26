@@ -20,29 +20,31 @@ class GeneralEmbedding(BaseEmbedding):
     """
     def __init__(self,
                  variable_size,
-                 variable_emb,
+                 variable_emb_size,
                  assignment_size,
-                 assignment_emb,
+                 assignment_emb_size,
                  context_size,
-                 context_emb,
-                 out_emb,
+                 context_emb_size,
+                 out_emb_size,
                  *args, **kwargs):
         super(GeneralEmbedding, self).__init__()
-        self.variable_proj = nn.Linear(variable_size, variable_emb)
-        self.assignment_proj = nn.Linear(assignment_size, assignment_emb)
+        self.out_emb_size = out_emb_size
+        self.variable_proj = nn.Linear(variable_size, variable_emb_size)
+        self.assignment_proj = nn.Linear(assignment_size, assignment_emb_size)
         self.context_size = context_size
+        if context_size < 0:
+            raise ValueError(f"`context_size` must be 0 or greater than 0, got {context_size}.")
         if context_size != 0:
-            # if context is empty, context_emb_size is 0.
-            self.context_proj = nn.Linear(context_size, context_emb)
+            self.context_proj = nn.Linear(context_size, context_emb_size)
         if context_size == 0:
-            context_emb = 0
-        input_size = variable_emb + assignment_emb + context_emb    
-        self.out_emb =  nn.Linear(input_size, out_emb)
+            context_emb_size = 0
+        input_size = variable_emb_size + assignment_emb_size + context_emb_size    
+        self.out_emb =  nn.Linear(input_size, out_emb_size)
 
     def forward(self, variable, assignment, context):
-        # variable: [batch_size, seq_len, features_size], could be n or n2v_emb_size
+        # variable: [batch_size, seq_len, features_size], could be n or 2*n2v_emb_size
         # assignment: [batch_size, seq_len, features_size=3]
-        # context: [batch_size, seq_len, features_size], feature_size could be 0.
+        # context: [batch_size, seq_len, features_size], feature_size could be 0 or 2*n2v_emb_size.
 
         assert (variable.dim() == 3) and (variable.dtype == torch.float), \
             f"In GeneralEmbedding's input. var dim: {variable.dim()}, shape: {variable.shape}, dtype: {variable.dtype}."
@@ -55,13 +57,16 @@ class GeneralEmbedding(BaseEmbedding):
         a = self.assignment_proj(assignment)
         if self.context_size != 0:
             c = self.context_proj(context)
-            input_vec = torch.cat((v,a,c), dim=-1)
+            cat_vec = torch.cat((v,a,c), dim=-1)
         else:
-            input_vec = torch.cat((v,a), dim=-1)
-        emb = self.out_emb(input_vec)
+            cat_vec = torch.cat((v,a), dim=-1)
+        emb = self.out_emb(cat_vec)
 
         return emb
         # X shape: [batch_size, seq_len, features_size=output_emb]
+
+
+
 
 
 
