@@ -63,7 +63,7 @@ class GeneralEmbedding(BaseEmbedding):
         emb = self.out_emb(cat_vec)
 
         return emb
-        # X shape: [batch_size, seq_len, features_size=output_emb]
+        # emb: [batch_size, seq_len, features_size=output_emb]
 
 
 
