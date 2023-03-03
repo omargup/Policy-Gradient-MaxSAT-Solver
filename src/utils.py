@@ -19,6 +19,26 @@ from tqdm import tqdm
 import os
 
 
+def vars_permutation(num_variables,
+                     device,
+                     batch_size = 1,
+                     permute_vars=False,
+                     permute_seed=None):  # e.g.: 2147483647
+    """
+    Returns a permutation of the variables' indices.
+    """
+    if permute_vars:
+        if permute_seed is not None:
+            gen = torch.Generator(device=device)
+            permutation = torch.cat([torch.randperm(num_variables, generator=gen.manual_seed(permute_seed)).unsqueeze(0) for _ in range(batch_size)], dim=0).permute(1,0)
+        else:
+            permutation = torch.cat([torch.randperm(num_variables).unsqueeze(0) for _ in range(batch_size)], dim=0).permute(1,0)
+    else:
+        permutation = torch.cat([torch.tensor([i for i in range(num_variables)]).unsqueeze(0) for _ in range(batch_size)], dim=0).permute(1,0)
+        # ::permutation:: [num_variables, batch_size]; e.g.: [[0, 1, 2, 3, 4], [0, 1, 2, 3, 4]]
+
+    return permutation
+
 
 def params_summary(model):
     for name, param in model.named_parameters():
