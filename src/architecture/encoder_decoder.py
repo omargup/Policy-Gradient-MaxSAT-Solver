@@ -1,20 +1,18 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
-from src.architecture.encoders import Encoder
 from src.architecture.decoders import Decoder
 from src.initializers.var_initializer import BaseVar, BasicVar
 from src.initializers.context_initializer import BaseContext, EmptyContext
-from src.initializers.state_initializer import BaseState, ZerosState
+from src.architecture.embeddings import BaseEmbedding
 
 
-class EncoderDecoder(nn.Module):
-    """ The encoder-decoder architecture.
+class PolicyNetwork(nn.Module):
+    """ The policy architecture.
     
     Parameters
     ----------
-    - encoder (Encoder type): The encoder. If None (default), no encoder is used.
+    - emb_module (Embedding type). The embedding module.
     - decoder (Decoder type): The decoder.
     - dec_var_initializer (BaseVar type): Variable initializer for the decore. If None (default), BasicVar is used.
     - dec_context_initializer (BaseContext type): Context initializer for the decoder. If None (default), EmptyContext is used.
@@ -22,74 +20,99 @@ class EncoderDecoder(nn.Module):
     """
 
     def __init__(self,
-                 encoder=None,
+                 formula,
+                 num_variables,
+                 n2v_emb = None,
+                 emb_module=None,
                  decoder=None,
                  dec_var_initializer=None,
                  dec_context_initializer=None,
-                 dec_state_initializer=None,
-                 **kwargs):
-        super(EncoderDecoder, self).__init__(**kwargs)
-        self.encoder = encoder
+                 clipping_val=0,
+                 *args, **kwargs):
+        super(PolicyNetwork, self).__init__()
+        self.emb_module = emb_module
         self.decoder = decoder
-        self.dec_var_initializer = dec_var_initializer
-        self.dec_context_initializer = dec_context_initializer
-        self.dec_state_initializer = dec_state_initializer
-        
-        if encoder is not None:
-            if not issubclass(type(encoder), Encoder):
-                raise TypeError("encoder must inherit from Encoder.")
+        self.c = clipping_val
+
+        if emb_module is None:
+            raise TypeError("An emb_module must be specified.")
+        if emb_module is not None:
+            if not issubclass(type(emb_module), BaseEmbedding):
+                raise TypeError("emb_module must inherit from BaseEmbedding.")
         
         if decoder is None:
             raise TypeError("A decoder must be specified.")
-        #TODO: Default RNNDecoder
         elif decoder is not None:
             if not issubclass(type(decoder), Decoder):
                 raise TypeError("decoder must inherit from Decoder.")
         
         if dec_var_initializer is None:
-            self.dec_var_initializer = BasicVar()
+            dec_var_initializer = BasicVar()
         if dec_var_initializer is not None:
             if not issubclass(type(dec_var_initializer), BaseVar):
                 raise TypeError("dec_var_initializer must inherit from BaseVar.")
 
         if dec_context_initializer is None:
-            self.dec_context_initializer = EmptyContext()
+            dec_context_initializer = EmptyContext()
         if dec_context_initializer is not None:
             if not issubclass(type(dec_context_initializer), BaseContext):
                 raise TypeError("dec_context_initializer must inherit from BaseContext.")
-
-        if dec_state_initializer is None:
-            self.dec_state_initializer = ZerosState()
-            #self.init_dec_state = ZerosState(cell, hidden_size, num_layers)
-        if dec_state_initializer is not None:
-            if not issubclass(type(dec_state_initializer), BaseState):
-                raise TypeError("dec_state_initializer must inherit from BaseState.")
         
-    def forward(self, dec_input, enc_input=None, *args):
-        raise NotImplementedError
+        if clipping_val < 0:
+            raise ValueError(f"`clipping_val` must be equal or greater than 0, got {clipping_val} ")
 
-        # var, a_prev = (dec_input)
-        # # var: [batch_size, seq_len]
-        # # a_prev: [batch_size, seq_len]
+        # Initialize Decoder Variables 
+        self.dec_vars = dec_var_initializer(n2v_emb, formula, num_variables)
+        # dec_vars: [batch_size=1, seq_len=num_vars, feature_size={num_vars, 2*n2v_emb_dim}]
 
-        # # Encoder
-        # enc_outputs = None
-        # if self.encoder is not None:
-        #     if enc_input is None:
-        #         raise TypeError("enc_input must be specified.")
-        #     enc_outputs = self.encoder(enc_input, *args)
-        
-        # # Decoder State
-        # dec_state = self.init_dec_state(enc_outputs, *args)
-        
-        # # Decoder Context
-        # if self.context is None:
-        #     # dec_context must be: [batch_size, feature_size]
-        #     dec_context = torch.rand([var.shape[0], 0]) #empty context
-        # if self.context is not None:
-        #     dec_context = self.context(enc_outputs, *args)
-        
-        # dec_input = (var, a_prev, dec_context)    
-        # logits, state= self.decoder(dec_input, dec_state)
+        # Initialize Decoder Context
+        self.dec_context = dec_context_initializer(n2v_emb, formula, num_variables)
+        # dec_context: [batch_size=1, feature_size={0, 2*n2v_emb_dim}]
 
-        # return logits, state
+        # Initialize action_prev at time t=0 with token 2 (sos).
+        self.init_action = torch.tensor([2], dtype=torch.long).reshape(-1,1,1)
+        # init_action: [batch_size=1, seq_len=1, feature_size=1]
+
+        # Initialize Decoder state
+        if (self.decoder.decoder_type == "GRU") or (self.decoder.decoder_type == "LSTM"):
+            self.dec_init_state =  decoder.init_state
+            # dec_init_state: [num_layers, batch_size=1, hidden_size]
+
+        
+    def forward(self, dec_input, helper, *args):
+        variable, assignment, context = dec_input
+        # variable: [batch_size, seq_len, features_size], could be n or 2*n2v_emb_size
+        # assignment: [batch_size, seq_len, features_size=3]
+        # context: [batch_size, seq_len, features_size], feature_size could be 0 or 2*n2v_emb_size.
+        
+        # helper is the state if RNN or mask if Transformer
+        # dec_state: [num_layers, batch_size, hidden_size] if decoder is GRU or LSTM.
+
+        emb_vec = self.emb_module(variable, assignment, context)
+        # emb_vec: [batch_size, seq_len, features_size=output_emb]
+        emb_vec = emb_vec.permute(1, 0, 2)
+        # emb: [seq_len, batch_size, features_size=output_emb]
+
+        if (self.decoder.decoder_type == "GRU") or (self.decoder.decoder_type == "LSTM"):
+            logits, dec_state = self.decoder(emb_vec, helper)  # helper is the state
+            # logits: [batch_size, seq_len, output_size={1,2}]
+            # dec_state: [num_layers, batch_size, hidden_size]
+
+            # clipping logits
+            if self.c > 0:
+                logits = self.c * torch.tanh(logits)
+            
+            return logits, dec_state
+        
+        else:  # Transformer
+            logits = self.decoder(emb_vec, helper)  # helper is the mask
+            # logits: [batch_size, seq_len, output_size={1,2}]
+
+            # clipping logits
+            if self.c > 0:
+                logits = self.c * torch.tanh(logits)
+            
+            return logits
+
+
+
