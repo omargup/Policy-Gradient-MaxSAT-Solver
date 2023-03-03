@@ -36,7 +36,7 @@ class RNNDec(Decoder):
             if trainable_state:
                 self.init_state = nn.Parameter(torch.empty(num_layers, 1, hidden_size))
                 # state shape: [num_layers, batch_size=1, hidden_size]
-                nn.init.xavier_normal_(self.h, gain=nn.init.calculate_gain('sigmoid'))
+                nn.init.xavier_normal_(self.init_state, gain=nn.init.calculate_gain('sigmoid'))
                 #nn.init.uniform_(self.h, a=a, b=b)
 
         elif cell == 'LSTM':
