@@ -4,13 +4,13 @@ import torch.optim as optim
 from torch.utils.tensorboard import SummaryWriter
 
 import src.train as train
-from src.architecture.embeddings import ProjEmbedding, OneHotProjEmbedding, IdentityEmbedding
-from src.architecture.encoder_decoder import EncoderDecoder
-from src.architecture.decoders import RNNDecoder
+from src.architecture.embeddings import GeneralEmbedding
+from src.architecture.encoder_decoder import PolicyNetwork
+from src.architecture.decoders import RNNDec, TransformerDec
 from src.architecture.baselines import BaselineRollout
 
-from src.initializers.var_initializer import BasicVar
-from src.initializers.context_initializer import EmptyContext
+from src.initializers.var_initializer import BasicVar, Node2VecVar
+from src.initializers.context_initializer import EmptyContext, Node2VecContext
 from src.initializers.state_initializer import ZerosState, TrainableState
 
 from src.train import train
@@ -22,6 +22,7 @@ from src.base_config import get_config
 from PyMiniSolvers import minisolvers
 
 import os
+import json
 import pprint as pp
 
 
@@ -47,30 +48,7 @@ def minisat_solver(n, formula):
     return assignment, is_sat
         
 
-def get_var_initializer(var_initializer):
-    initial_var_class = {"BasicVar": BasicVar}.get(var_initializer, None)
-    if initial_var_class is None:
-        raise ValueError(f'{var_initializer} is not a valid variable initializer.')
-    return initial_var_class
-
-
-def get_context_initializer(context_initializer):
-    initial_context_class = {"EmptyContext": EmptyContext}.get(context_initializer, None)
-    if initial_context_class is None:
-        raise ValueError(f'{context_initializer} is not a valid context initializer.')
-    return initial_context_class
-
-
-def get_state_initializer(state_initializer):
-    initial_state_class = {"ZerosState": ZerosState,
-                          "TrainableState": TrainableState}.get(state_initializer, None)
-    if initial_state_class is None:
-        raise ValueError(f'{state_initializer} is not a valid state initializer.')
-    return initial_state_class
-
-
 def pg_solver(config):
-
     # Configuration parameters
     config = get_config(config)
     pp.pprint(config)
@@ -93,66 +71,123 @@ def pg_solver(config):
     num_variables = n
     print(f"Formula loaded from: {config['data_dir']}.")
 
+    # Node2vec embeddings
+    if config['node2vec'] == False:
+        n2v_emb = None
+
+    elif config['node2vec'] == True:
+        # Creates the folder n2v_dir/n2v_dim
+        node2vec_dir = os.path.join(config['n2v_dir'], str(config['n2v_dim']))
+        os.makedirs(node2vec_dir, exist_ok=True)
+
+        # Creates a filename with the same name of the dimacs file but with extention .pt
+        tail = os.path.split(config['data_dir'])[1]  # returns filename and extension
+        node2vec_filename = os.path.splitext(tail)[0]  # returns filename
+        
+        node2vec_file = os.path.join(node2vec_dir, node2vec_filename + ".pt")
+
+        # Tries to load pretrained embeddings
+        n2v_emb = None
+        if config['n2v_pretrained']:
+            if os.path.isfile(node2vec_file):
+                n2v_emb = torch.load(node2vec_file)
+                print(f"Node2Vec embeddings of size {config['n2v_dim']} loaded from: {node2vec_file}.")
+            else:
+                print(f"No Node2Vec embeddings of size {config['n2v_dim']} have been created.")
+        
+        # Runs node2vec algorithm if not pretrained or not found
+        if n2v_emb is None:
+            n2v_emb = utils.node2vec(dimacs_path=config['data_dir'],
+                                     device=device,
+                                     embedding_dim=config['n2v_dim'],
+                                     walk_length=config['n2v_walk_len'],
+                                     context_size=config['n2v_context_size'],
+                                     walks_per_node=config['n2v_walks_per_node'],
+                                     p=config['n2v_p'],
+                                     q=config['n2v_q'],
+                                     batch_size=config['n2v_batch_size'],
+                                     lr=config['n2v_lr'],
+                                     num_epochs=config['n2v_num_epochs'],
+                                     save_path=node2vec_dir,
+                                     file_name=node2vec_filename,
+                                     num_workers=config['n2v_workers'],
+                                     verbose=config['n2v_verbose'])
+
+    else:
+        raise ValueError(f"{config['node2vec']} is not a valid value, try with True or False.")
+    
 
     # Initializers
-    initial_var_class = get_var_initializer(config["dec_var_initializer"])
-    initialize_dec_var  = initial_var_class()
-
-    initial_context_class = get_context_initializer(config["dec_context_initializer"])
-    initialize_dec_context  = initial_context_class()
-
-    initial_state_class = get_state_initializer(config["dec_state_initializer"])
-    initialize_dec_state  = initial_state_class(cell=config["cell"],
-                                             hidden_size=config["hidden_size"],
-                                             num_layers=config["num_layers"],
-                                             a=config["initial_state_a"],
-                                             b=config["initial_state_b"])
-
-
-    # Embeddings
-    # Assignment embedding
-    assignment_emb = OneHotProjEmbedding(num_labels=3, # an assignment_t could be 0, 1 or 2 (2 is our SOS)
-                                        embedding_size=config['assignment_emb_size'])
-
-    # Variable embedding
+    # Var Initializers
     if config["dec_var_initializer"] == "BasicVar":
-        variable_emb = OneHotProjEmbedding(num_labels=num_variables,
-                                           embedding_size=config['variable_emb_size'])
+        initialize_dec_var  = BasicVar()
+    elif config["dec_var_initializer"] == "Node2VecVar":
+        if not config['node2vec']:
+            raise ValueError("Node2VecVar variable initializer needs `config['node2vec']` set to True.")
+        initialize_dec_var  = Node2VecVar()
     else:
-        variable_emb = IdentityEmbedding()
-
-    # Context embedding
-    context_emb = IdentityEmbedding()
-
-
-    # Encoder
-    #TODO: code to handle more encoders
-    encoder = None
+        raise ValueError(f'{config["dec_var_initializer"]} is not a valid variable initializer.')
+    
+    # Context Initializers
+    if config["dec_context_initializer"] == "EmptyContext":
+        initialize_dec_context  = EmptyContext()
+    elif config["dec_context_initializer"] == "Node2VecContext":
+        if not config['node2vec']:
+            raise ValueError("Node2VecContext context initializer needs `config['node2vec']` set to True.")
+        initialize_dec_context  = Node2VecContext()
+    else:
+        raise ValueError(f'{config["dec_context_initializer"]} is not a valid context initializer.')
+    
+    # Embedding
+    variable_size = num_variables if config["dec_var_initializer"] == "BasicVar" else config['n2v_dim'] * 2
+    context_size = 0 if config["dec_context_initializer"] == "EmptyContext" else config['n2v_dim'] * 2
+    if context_size == 0:
+        # if context is empty, context_emb_size is 0.
+        config['context_emb_size'] = 0
+    emb_module = GeneralEmbedding(variable_size= variable_size,
+                                  variable_emb_size=config['var_emb_size'],
+                                  assignment_size=3,  # an assignment_t could be 0, 1 or 2 (SOS)
+                                  assignment_emb_size=config['assignment_emb_size'],  
+                                  context_size=context_size,
+                                  context_emb_size=config['context_emb_size'],
+                                  out_emb_size=config['model_dim'])
 
 
     # Decoder
-    #TODO: code to handle more decoders
-    # if context is empty, context_emb_size is 0.
-    input_size = config['variable_emb_size'] + config['assignment_emb_size'] \
-        + config['context_emb_size']
-
-    decoder = RNNDecoder(input_size = input_size,
-                        cell = config['cell'],
-                        assignment_emb = assignment_emb,
-                        variable_emb = variable_emb,
-                        context_emb = context_emb,
-                        hidden_size = config['hidden_size'],
-                        num_layers = config['num_layers'],
-                        dropout = config['dropout'],
-                        clip_logits_c = config['clip_logits_c'],
-                        output_size = config['output_size'])
+    if (config["decoder"] == "GRU") or (config["decoder"] == "LSTM"):
+        decoder = RNNDec(input_size = config['model_dim'],
+                         cell = config["decoder"],
+                         hidden_size = config['hidden_size'],
+                         num_layers = config['num_layers'],
+                         dropout = config['dropout'],
+                         trainable_state=config["trainable_state"],
+                         output_size = config['output_size'])
     
+
+    elif config["decoder"] == "Transformer":
+        decoder = TransformerDec(d_model = config['model_dim'],
+                                num_heads = config['num_heads'],
+                                num_layers = config['num_layers'],
+                                dense_size = config['dense_size'],
+                                dropout = config['dropout'],
+                                activation = "relu",
+                                output_size = config['output_size'])
+
+    else:
+        raise ValueError(f'{config["decoder"]} is not a valid decoder.')
+
     # Network
-    policy_network = EncoderDecoder(encoder=encoder,
-                                    decoder=decoder,
-                                    dec_var_initializer=initialize_dec_var,
-                                    dec_context_initializer=initialize_dec_context,
-                                    dec_state_initializer=initialize_dec_state)
+    policy_network = PolicyNetwork(formula=formula,
+                                   num_variables=num_variables,
+                                   n2v_emb=n2v_emb,
+                                   emb_module=emb_module,
+                                   decoder=decoder,  
+                                   dec_var_initializer=initialize_dec_var,
+                                   dec_context_initializer=initialize_dec_context,
+                                   clipping_val=config['clipping_val'])
+    
+    print("\n")
+    utils.params_summary(policy_network)
     
     optimizer = optim.Adam(policy_network.parameters(), lr=config['lr'])
 
@@ -169,8 +204,6 @@ def pg_solver(config):
 
     
 
-    variables = None
-
     # TODO: Support different baselines
     baseline = None
     if config['baseline'] is not None:
@@ -179,29 +212,35 @@ def pg_solver(config):
         baseline = BaselineRollout(config['baseline'])
         
 
-    train(formula= formula,
-          num_variables=num_variables,
-          variables=variables,
-          policy_network=policy_network,
-          optimizer=optimizer,
-          device=device,
-          strategy='sampled',
-          batch_size=config['batch_size'],
-          permute_vars = config['permute_vars'],
-          permute_seed = config['permute_seed'],
-          baseline = baseline,
-          entropy_weight = config['entropy_weight'],
-          clip_grad = config['clip_grad'],
-          raytune = config['raytune'],
-          num_episodes = config['num_episodes'],
-          accumulation_episodes = config['accumulation_episodes'],
-          log_episodes = config['log_episodes'],
-          eval_episodes = config['eval_episodes'],
-          eval_strategies = config['eval_strategies'], # 0 for greedy, i < 0 takes i samples and returns the best one.
-          writer = writer,  # Tensorboard writer
-          extra_logging = config['extra_logging'],
-          run_name = f"{config['run_name']}-{config['run_id']}",
-          progress_bar = False)
+    active_search = train(formula= formula,
+                            num_variables=num_variables,
+                            policy_network=policy_network,
+                            optimizer=optimizer,
+                            device=device,
+                            strategy='sampled',
+                            batch_size=config['batch_size'],
+                            permute_vars = config['permute_vars'],
+                            permute_seed = config['permute_seed'],
+                            baseline = baseline,
+                            entropy_weight = config['entropy_weight'],
+                            clip_grad = config['clip_grad'],
+                            num_episodes = config['num_episodes'],
+                            accumulation_episodes = config['accumulation_episodes'],
+                            log_interval = config['log_interval'],
+                            eval_interval = config['eval_interval'],
+                            eval_strategies = config['eval_strategies'], # 0 for greedy, i < 0 takes i samples and returns the best one.
+                            writer = writer,  # Tensorboard writer
+                            extra_logging = config['extra_logging'],
+                            raytune = config['raytune'],
+                            run_name = f"{config['run_name']}-{config['run_id']}",
+                            progress_bar = config['progress_bar'],
+                            early_stopping=config['early_stopping'], 
+                            patience=config['patience'],
+                            entropy_value=config['entropy_value'])
+
+    # Saving best solution
+    with open(os.path.join(config['save_dir'], "solution.json"), 'w') as f:
+        json.dump(active_search, f, indent=True)
 
     if config['tensorboard_on']:
        writer.close()
