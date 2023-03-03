@@ -28,7 +28,7 @@ class GeneralEmbedding(BaseEmbedding):
                  out_emb_size,
                  *args, **kwargs):
         super(GeneralEmbedding, self).__init__()
-        self.out_emb_size = out_emb_size
+        #self.out_emb_size = out_emb_size
         self.variable_proj = nn.Linear(variable_size, variable_emb_size)
         self.assignment_proj = nn.Linear(assignment_size, assignment_emb_size)
         self.context_size = context_size
