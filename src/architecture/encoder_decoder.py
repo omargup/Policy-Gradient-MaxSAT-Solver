@@ -27,12 +27,10 @@ class PolicyNetwork(nn.Module):
                  decoder=None,
                  dec_var_initializer=None,
                  dec_context_initializer=None,
-                 clipping_val=0,
                  *args, **kwargs):
         super(PolicyNetwork, self).__init__()
         self.emb_module = emb_module
         self.decoder = decoder
-        self.c = clipping_val
 
         if emb_module is None:
             raise TypeError("An emb_module must be specified.")
@@ -57,9 +55,6 @@ class PolicyNetwork(nn.Module):
         if dec_context_initializer is not None:
             if not issubclass(type(dec_context_initializer), BaseContext):
                 raise TypeError("dec_context_initializer must inherit from BaseContext.")
-        
-        if clipping_val < 0:
-            raise ValueError(f"`clipping_val` must be equal or greater than 0, got {clipping_val} ")
 
         # Initialize Decoder Variables 
         self.dec_vars = dec_var_initializer(n2v_emb, formula, num_variables)
@@ -97,20 +92,12 @@ class PolicyNetwork(nn.Module):
             logits, dec_state = self.decoder(emb_vec, helper)  # helper is the state
             # logits: [batch_size, seq_len, output_size={1,2}]
             # dec_state: [num_layers, batch_size, hidden_size]
-
-            # clipping logits
-            if self.c > 0:
-                logits = self.c * torch.tanh(logits)
             
             return logits, dec_state
         
         else:  # Transformer
             logits = self.decoder(emb_vec, helper)  # helper is the mask
             # logits: [batch_size, seq_len, output_size={1,2}]
-
-            # clipping logits
-            if self.c > 0:
-                logits = self.c * torch.tanh(logits)
             
             return logits
 

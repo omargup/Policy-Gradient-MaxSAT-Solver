@@ -35,7 +35,6 @@ def get_config(new_config=None):
         # Architecture
         "decoder": 'GRU',  # {'GRU', 'LSTM', "Transformer"}
         "num_layers": 1,  
-        "clipping_val": 0,
         "output_size": 2,  #Decoder output size: 1, 2
         "dropout": 0,
 
@@ -56,13 +55,17 @@ def get_config(new_config=None):
         "entropy_weight": 0,
         "lr": 0.00015,  # 0.00015
 
+        # Exploration
+        "logit_clipping": None,  # {None, int >= 1}
+        "logit_temp": None,  # {None, int >= 1}
+
         # Regularization
         "early_stopping": False,
         "patience": 5,
         "entropy_value": 0,
 
         "log_interval": 100,
-        "eval_episodes": 200,
+        "eval_interval": 200,
         "eval_strategies": [0, 5],
         "tensorboard_on": True,
         "extra_logging": False,  # log TrainableState's weights

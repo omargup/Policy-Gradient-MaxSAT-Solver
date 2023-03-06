@@ -50,13 +50,31 @@ class Buffer():
 def run_episode(num_variables,
                 policy_network,
                 device,
-                strategy = 'sampled',
-                batch_size = 1,
-                permute_vars = False,
-                permute_seed = None):  # e.g.: 2147483647          
+                strategy='sampled',
+                batch_size=1,
+                permute_vars=False,
+                permute_seed=None,  # e.g.: 2147483647 
+                logit_clipping=None,  # {None, int >= 1}
+                logit_temp=None):  # {None, int >= 1}        
     """
     Runs an episode and returns an updated buffer.
     """
+    if logit_clipping is not None:
+        if logit_clipping < 1:
+            raise ValueError(f"`logit_clipping` must be equal or greater than 1, got {logit_clipping}.")
+        C = logit_clipping
+        logit_clipping = True
+    else:
+        logit_clipping = False
+    
+    if logit_temp is not None:
+        if logit_temp < 1:
+            raise ValueError(f"`logit_temp` must be equal or greater than 1, got {logit_temp}.")
+        T = logit_temp
+        logit_temp = True
+    else:
+        logit_temp = False
+
     dec_type = policy_network.decoder.decoder_type
     dec_output_size = policy_network.decoder.output_size
     assert (dec_output_size == 1) or (dec_output_size == 2), f"In run_episode. Decoder's output shape[-1]: {dec_output_size}"
@@ -153,7 +171,12 @@ def run_episode(num_variables,
             # action_logits: [batch_size, seq_len=1, output_size=(1 or 2)]
 
             #print(f'logits:\n{action_logits_full}')
-     
+        
+        # Promote exploration
+        if logit_clipping:
+            action_logits = C * torch.tanh(action_logits)
+        if logit_temp:
+            action_logits = action_logits / T
 
         # Prob distribution over actions
         if action_logits.shape[-1] == 1:
@@ -238,6 +261,8 @@ def train(formula,
           permute_vars=False,  #-->ok
           permute_seed=None,  #-->ok
           baseline=None,
+          logit_clipping=None,  # {None, int >= 1}
+          logit_temp=None,  # {None, int >= 1}  
           entropy_weight=0,
           clip_grad=None,
           num_episodes=5000,
@@ -312,13 +337,15 @@ def train(formula,
 
     for episode in tqdm(range(1, num_episodes + 1), disable=not progress_bar, ascii=True):
         
-        buffer = run_episode(num_variables,
-                             policy_network,
-                             device,
-                             strategy,
-                             batch_size,
-                             permute_vars,
-                             permute_seed)
+        buffer = run_episode(num_variables=num_variables,
+                             policy_network=policy_network,
+                             device=device,
+                             strategy=strategy,
+                             batch_size=batch_size,
+                             permute_vars=permute_vars,
+                             permute_seed=permute_seed,
+                             logit_clipping=logit_clipping,  # {None, int >= 1}
+                             logit_temp=1)  # {None, int >= 1}  
         
         policy_network.eval()
         with torch.no_grad():
@@ -395,7 +422,7 @@ def train(formula,
                         writer.add_histogram('params/init_state', policy_network.dec_state_initializer.h, episode)
 
 
-        # Validation
+        # Evaluation
         if (episode % eval_interval) == 0:
             print('-------------------------------------------------')
             print(f'Evaluation in episode: {episode}. Num of sat clauses:')
@@ -403,14 +430,17 @@ def train(formula,
             with torch.no_grad():
                 
                 for strat in eval_strategies:
-                    #TODO: Do not allow negative values for strat
+                    if (strat < 0) or (strat != int):
+                        raise ValueError(f'values in `eval_strategy` must be 0 if greedy or an integer greater or equal than 1 if sampled, got {strat}.')
                     buffer = run_episode(num_variables = num_variables,
-                                        policy_network = policy_network,
-                                        device = device,
-                                        strategy = 'greedy' if strat == 0 else 'sampled',
-                                        batch_size = 1 if strat == 0 else strat,
-                                        permute_vars = permute_vars,
-                                        permute_seed = permute_seed)
+                                         policy_network = policy_network,
+                                         device = device,
+                                         strategy = 'greedy' if strat == 0 else 'sampled',
+                                         batch_size = 1 if strat == 0 else strat,
+                                         permute_vars = permute_vars,
+                                         permute_seed = permute_seed,
+                                         logit_clipping=logit_clipping,  # {None, int >= 1}
+                                         logit_temp=logit_temp)  # {None, int >= 1}  )
             
                     # Compute num of sat clauses
                     num_sat = utils.num_sat_clauses_tensor(formula, buffer.action.detach()).detach()

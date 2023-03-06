@@ -183,11 +183,12 @@ def pg_solver(config):
                                    emb_module=emb_module,
                                    decoder=decoder,  
                                    dec_var_initializer=initialize_dec_var,
-                                   dec_context_initializer=initialize_dec_context,
-                                   clipping_val=config['clipping_val'])
+                                   dec_context_initializer=initialize_dec_context)
     
     print("\n")
     utils.params_summary(policy_network)
+
+    print(policy_network)
     
     optimizer = optim.Adam(policy_network.parameters(), lr=config['lr'])
 
@@ -213,30 +214,32 @@ def pg_solver(config):
         
 
     active_search = train(formula= formula,
-                            num_variables=num_variables,
-                            policy_network=policy_network,
-                            optimizer=optimizer,
-                            device=device,
-                            strategy='sampled',
-                            batch_size=config['batch_size'],
-                            permute_vars = config['permute_vars'],
-                            permute_seed = config['permute_seed'],
-                            baseline = baseline,
-                            entropy_weight = config['entropy_weight'],
-                            clip_grad = config['clip_grad'],
-                            num_episodes = config['num_episodes'],
-                            accumulation_episodes = config['accumulation_episodes'],
-                            log_interval = config['log_interval'],
-                            eval_interval = config['eval_interval'],
-                            eval_strategies = config['eval_strategies'], # 0 for greedy, i < 0 takes i samples and returns the best one.
-                            writer = writer,  # Tensorboard writer
-                            extra_logging = config['extra_logging'],
-                            raytune = config['raytune'],
-                            run_name = f"{config['run_name']}-{config['run_id']}",
-                            progress_bar = config['progress_bar'],
-                            early_stopping=config['early_stopping'], 
-                            patience=config['patience'],
-                            entropy_value=config['entropy_value'])
+                          num_variables=num_variables,
+                          policy_network=policy_network,
+                          optimizer=optimizer,
+                          device=device,
+                          strategy='sampled',
+                          batch_size=config['batch_size'],
+                          permute_vars = config['permute_vars'],
+                          permute_seed = config['permute_seed'],
+                          baseline = baseline,
+                          logit_clipping=config['logit_clipping'],  
+                          logit_temp=config['logit_temp'], 
+                          entropy_weight = config['entropy_weight'],
+                          clip_grad = config['clip_grad'],
+                          num_episodes = config['num_episodes'],
+                          accumulation_episodes = config['accumulation_episodes'],
+                          log_interval = config['log_interval'],
+                          eval_interval = config['eval_interval'],
+                          eval_strategies = config['eval_strategies'], # 0 for greedy, i < 0 takes i samples and returns the best one.
+                          writer = writer,  # Tensorboard writer
+                          extra_logging = config['extra_logging'],
+                          raytune = config['raytune'],
+                          run_name = f"{config['run_name']}-{config['run_id']}",
+                          progress_bar = config['progress_bar'],
+                          early_stopping=config['early_stopping'], 
+                          patience=config['patience'],
+                          entropy_value=config['entropy_value'])
 
     # Saving best solution
     with open(os.path.join(config['save_dir'], "solution.json"), 'w') as f:
