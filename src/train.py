@@ -430,8 +430,8 @@ def train(formula,
             with torch.no_grad():
                 
                 for strat in eval_strategies:
-                    if (strat < 0) or (strat != int):
-                        raise ValueError(f'values in `eval_strategy` must be 0 if greedy or an integer greater or equal than 1 if sampled, got {strat}.')
+                    if (strat < 0) or (type(strat) != int):
+                        raise ValueError(f'Values in `eval_strategy` must be 0 if greedy or an integer greater or equal than 1 if sampled, got {strat}.')
                     buffer = run_episode(num_variables = num_variables,
                                          policy_network = policy_network,
                                          device = device,
