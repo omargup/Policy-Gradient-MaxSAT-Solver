@@ -256,7 +256,6 @@ def train(formula,
           policy_network,  #-->ok
           optimizer,  #-->ok
           device,  #-->ok
-          strategy='sampled',  #-->ok
           batch_size=1,  #-->ok
           permute_vars=False,  #-->ok
           permute_seed=None,  #-->ok
@@ -289,7 +288,6 @@ def train(formula,
         optimizer: torch.optimizer
         device: torch.device.  
         formula_emb:
-        strategy: str, {'sampled', 'greedy'}
         batch_size: int.
         permute_vars: bool, {True, False}.
         permute_seed: long,
@@ -340,7 +338,7 @@ def train(formula,
         buffer = run_episode(num_variables=num_variables,
                              policy_network=policy_network,
                              device=device,
-                             strategy=strategy,
+                             strategy='sampled',
                              batch_size=batch_size,
                              permute_vars=permute_vars,
                              permute_seed=permute_seed,

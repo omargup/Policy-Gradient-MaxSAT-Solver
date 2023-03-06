@@ -218,7 +218,6 @@ def pg_solver(config):
                           policy_network=policy_network,
                           optimizer=optimizer,
                           device=device,
-                          strategy='sampled',
                           batch_size=config['batch_size'],
                           permute_vars = config['permute_vars'],
                           permute_seed = config['permute_seed'],
