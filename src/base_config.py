@@ -47,13 +47,19 @@ def get_config(new_config=None):
         # Training
         "num_episodes": 5000,
         "accumulation_episodes": 1,
-        "baseline": None,  # None, -1, 1, 2, 3, 4, 5,...
         "batch_size": 1,
         "permute_vars": True,
         "permute_seed": None,  # 2147483647
         "clip_grad": 1,
         "entropy_weight": 0,
         "lr": 0.00015,  # 0.00015
+
+        # Baseline
+        "baseline": None,  # {None, 'greedy', 'sample'. 'ema'}
+        "alpha_ema": 0.99,  # 0 <= alpha <= 1. EMA decay.
+        "k_samples": 10,  # int, k >= 1. Number of samples used to obtain the baseline value
+        
+
 
         # Exploration
         "logit_clipping": None,  # {None, int >= 1}

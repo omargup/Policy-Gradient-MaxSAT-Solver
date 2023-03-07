@@ -259,7 +259,7 @@ def train(formula,
           batch_size=1,  #-->ok
           permute_vars=False,  #-->ok
           permute_seed=None,  #-->ok
-          baseline=None,
+          baseline=None, 
           logit_clipping=None,  # {None, int >= 1}
           logit_temp=None,  # {None, int >= 1}  
           entropy_weight=0,
@@ -355,7 +355,15 @@ def train(formula,
             # Compute baseline
             baseline_val = torch.tensor(0, dtype=float).detach()
             if baseline is not None:
-                baseline_val = baseline(formula, num_variables, policy_network, device, permute_vars, permute_seed).detach()
+                baseline_val = baseline(formula=formula,
+                                        num_variables=num_variables,
+                                        policy_network=policy_network,
+                                        device=device,
+                                        permute_vars=permute_vars,
+                                        permute_seed=permute_seed,
+                                        logit_clipping=logit_clipping,
+                                        logit_temp=logit_temp,
+                                        num_sat=num_sat).detach()
 
         policy_network.train()
 
@@ -363,6 +371,7 @@ def train(formula,
         #w_entropy = entropy_decay.update_w()
         w_entropy = 0
         
+        #TODO: loss mean
         # Get loss (mean over the batch)
         mean_action_log_prob =  buffer.action_log_prob.sum(dim=-1).mean()
         #mean_entropy = buffer.entropy.sum(-1).mean() #.detach()

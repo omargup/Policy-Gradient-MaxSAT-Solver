@@ -7,11 +7,10 @@ import src.train as train
 from src.architecture.embeddings import GeneralEmbedding
 from src.architecture.encoder_decoder import PolicyNetwork
 from src.architecture.decoders import RNNDec, TransformerDec
-from src.architecture.baselines import BaselineRollout
+from src.architecture.baselines import RolloutBaseline, EMABaseline
 
 from src.initializers.var_initializer import BasicVar, Node2VecVar
 from src.initializers.context_initializer import EmptyContext, Node2VecContext
-from src.initializers.state_initializer import ZerosState, TrainableState
 
 from src.train import train
 import src.utils as utils
@@ -202,17 +201,19 @@ def pg_solver(config):
 #                 policy_network.load_state_dict(model_state)
 #                 optimizer.load_state_dict(optimizer_state)
            
-
+    if config['baseline'] is None:
+        baseline = None
+    elif config['baseline'] == 'ema':
+        baseline = EMABaseline(num_clauses=m, alpha=config['alpha_ema'])
+    elif config['baseline'] == 'greedy':
+        baseline = RolloutBaseline(num_rollouts=-1)
+    elif config['baseline'] == 'sample':
+        if (type(config['k_samples']) != int) or (config['k_samples'] < 1):
+            raise ValueError(f"`k_samples` must be an integer equeal or greater than 1.")
+        baseline = RolloutBaseline(num_rollouts=config['k_samples'])
+    else:
+        raise ValueError(f'{config["baseline"]} is not a valid baseline.')
     
-
-    # TODO: Support different baselines
-    baseline = None
-    if config['baseline'] is not None:
-        if (type(config['baseline']) != int) or (config['baseline'] < -1) or (config['baseline'] == 0):
-            raise ValueError(f"{config['baseline']} is not a valid baseline value.")
-        baseline = BaselineRollout(config['baseline'])
-        
-
     active_search = train(formula= formula,
                           num_variables=num_variables,
                           policy_network=policy_network,
