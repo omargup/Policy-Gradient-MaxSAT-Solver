@@ -28,6 +28,7 @@ class RNNDec(Decoder):
 
         self.decoder_type = cell
         self.output_size = output_size
+        self.trainable_state = trainable_state
         
         # RNN
         if cell == 'GRU':
