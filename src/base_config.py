@@ -51,7 +51,6 @@ def get_config(new_config=None):
         "permute_vars": True,
         "permute_seed": None,  # 2147483647
         "clip_grad": 1,
-        "entropy_weight": 0,
         "lr": 0.00015,  # 0.00015
 
         # Baseline
@@ -59,11 +58,11 @@ def get_config(new_config=None):
         "alpha_ema": 0.99,  # 0 <= alpha <= 1. EMA decay.
         "k_samples": 10,  # int, k >= 1. Number of samples used to obtain the baseline value
         
-
-
         # Exploration
         "logit_clipping": None,  # {None, int >= 1}
         "logit_temp": None,  # {None, int >= 1}
+        "entropy_estimator": 'crude',  # {'crude', 'smooth'}
+        "beta_entropy": 0,  # float, beta >= 0.
 
         # Regularization
         "early_stopping": False,

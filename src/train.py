@@ -28,15 +28,15 @@ class Buffer():
     def __init__(self, batch_size, num_variables, dec_output_size) -> None:
         # Episode Buffer
         self.action_logits = torch.empty(size=(batch_size, num_variables, dec_output_size))
-        # ::buffer_action_logits:: [batch_size, seq_len=num_variables, feature_size=1or2]
+        # buffer_action_logits: [batch_size, seq_len=num_variables, feature_size=1or2]
         self.action_probs = torch.empty(size=(batch_size, num_variables, dec_output_size))
-        # ::buffer_action_probs:: [batch_size, seq_len=num_variables, feature_size=1or2]
+        # buffer_action_probs: [batch_size, seq_len=num_variables, feature_size=1or2]
         self.action = torch.empty(size=(batch_size, num_variables), dtype = torch.int64)
-        # ::buffer_action:: [batch_size, seq_len=num_variables]
+        # buffer_action: [batch_size, seq_len=num_variables]
         self.action_log_prob = torch.empty(size=(batch_size, num_variables))
-        # ::buffer_action_log_prob:: [batch_size, seq_len=num_variables]
+        # buffer_action_log_prob: [batch_size, seq_len=num_variables]
         #self.entropy = torch.empty(size=(batch_size, num_variables))
-        # ::buffer_entropy:: [batch_size, seq_len=num_variables]
+        # buffer_entropy: [batch_size, seq_len=num_variables]
     
     def update(self, idx, t, action_logits, action_probs, action, action_log_prob):
         assert action.dtype == torch.int64, f'action in update Buffer. dtype: {action.dtype}, shape: {action.shape}.'
@@ -261,8 +261,9 @@ def train(formula,
           permute_seed=None,  #-->ok
           baseline=None, 
           logit_clipping=None,  # {None, int >= 1}
-          logit_temp=None,  # {None, int >= 1}  
-          entropy_weight=0,
+          logit_temp=None,  # {None, int >= 1}
+          entropy_estimator='crude',  # {'crude', 'smooth'}
+          beta_entropy=0,  
           clip_grad=None,
           num_episodes=5000,
           accumulation_episodes=1,
@@ -369,20 +370,36 @@ def train(formula,
 
         # Update entropy weight
         #w_entropy = entropy_decay.update_w()
-        w_entropy = 0
-        
-        #TODO: loss mean
-        # Get loss (mean over the batch)
-        mean_action_log_prob =  buffer.action_log_prob.sum(dim=-1).mean()
-        #mean_entropy = buffer.entropy.sum(-1).mean() #.detach()
-        mean_entropy = - buffer.action_log_prob.sum(dim=-1).mean()
-        pg_loss = - ((num_sat.mean() - baseline_val) * mean_action_log_prob) 
-        pg_loss_with_ent = pg_loss - (w_entropy * mean_entropy)
-        
+        #w_entropy = 0
+
+        # Entropy
+        if entropy_estimator == "crude":
+            log_prob_a = buffer.action_log_prob
+            # log_prob_a: [batch_size, seq_len=num_variables]
+            H = - log_prob_a.sum(dim=-1)
+            # H: [batch_size]
+
+        elif entropy_estimator == "smooth":
+            probs = buffer.action_probs
+            # probs: [batch_size, seq_len=num_variables, feature_size={1,2}]
+            if probs.shape[-1] == 1:
+                probs = torch.cat([probs, 1-probs], dim=-1)
+            # probs: [batch_size, seq_len=num_variables, feature_size=2]
+            log_probs = torch.log(probs)
+            # log_probs: [batch_size, seq_len=num_variables, feature_size=2]
+            H = -torch.mul(probs, log_probs).sum(-1).sum(-1)
+            # H: [batch_size]
+        else:
+            raise ValueError(f"{entropy_estimator} is not a valid entropy estimator, try with 'crude' or'smooth'.")
+
+        # Loss (mean over batch)
+        # buffer.action_log_prob: [batch_size, seq_len=num_variables]
+        log_prob = buffer.action_log_prob.sum(dim=-1)
+        # log_prob: [batch_size]
+        pg_loss = - ((num_sat - baseline_val) * log_prob + (beta_entropy * H)).mean()
         # Normalize loss for gradient accumulation
-        loss = pg_loss_with_ent / accumulation_episodes
-        #num_sat = num_sat / accumulation_episodes
-        
+        loss = pg_loss / accumulation_episodes
+
         # Gradient accumulation
         loss.backward()
 
@@ -397,36 +414,40 @@ def train(formula,
         if (episode % log_interval) == 0:
 
             num_sat_mean = num_sat.mean().item()
+            log_prob_mean = log_prob.mean().item()
+            H_mean = H.mean().item()
 
             # Log values to screen
             print(f'\nEpisode: {episode}, num_sat: {num_sat_mean}')
-            print('\tpg_loss: - ({} - {}) * {} = {}'.format(num_sat_mean,
-                                                        baseline_val.item(),
-                                                        mean_action_log_prob.item(),
-                                                        pg_loss.item()))
-            print('\tpg_loss + entropy: {} - ({} * {}) = {}'.format(pg_loss.item(),
-                                                                w_entropy,
-                                                                mean_entropy.item(),
-                                                                pg_loss_with_ent.item()))
+            print('\tpg_loss: - ({} - {}) * {} + ({} * {}) = {}'.format(num_sat_mean,
+                                                                        baseline_val.item(),
+                                                                        log_prob_mean,
+                                                                        beta_entropy,
+                                                                        H_mean,
+                                                                        pg_loss.item()))
             
             #print(f'logits: \n{buffer.action_logits}')
             #print(f'probs: \n{buffer.action_probs}')
 
             if writer is not None:
                 writer.add_scalar('num_sat', num_sat_mean, episode, new_style=True)
-                writer.add_scalar('pg_loss', pg_loss.item(), episode, new_style=True)
-                writer.add_scalar('pg_loss_with_ent', pg_loss_with_ent.item(), episode, new_style=True)
-                writer.add_scalar('log_prob', mean_action_log_prob.item(), episode, new_style=True)
                 writer.add_scalar('baseline', baseline_val.item(), episode, new_style=True)
-                writer.add_scalar('entropy/entropy', mean_entropy.item(), episode, new_style=True)
-                writer.add_scalar('entropy/w*entropy', (w_entropy * mean_entropy).item(), episode, new_style=True)
+                writer.add_scalar('log_prob', log_prob_mean, episode, new_style=True)
+
+                writer.add_scalar('pg_loss', -((num_sat_mean - baseline_val.item()) * log_prob_mean), episode, new_style=True)
+                writer.add_scalar('pg_loss_with_ent', -((num_sat_mean - baseline_val.item()) * log_prob_mean + (beta_entropy * H_mean)), episode, new_style=True)
+                
+                writer.add_scalar('entropy/beta', beta_entropy, episode, new_style=True)
+                writer.add_scalar('entropy/entropy', H_mean, episode, new_style=True)
+                writer.add_scalar('entropy/beta*entropy', beta_entropy * H_mean, episode, new_style=True)
 
                 if extra_logging:
                     writer.add_histogram('histogram/action_logits', buffer.action_logits, episode)
                     writer.add_histogram('histogram/action_probs', buffer.action_probs, episode)
                     
-                    if type(policy_network.dec_state_initializer) == TrainableState:
-                        writer.add_histogram('params/init_state', policy_network.dec_state_initializer.h, episode)
+                    if policy_network.decoder.decoder_type == "GRU" or policy_network.decoder.decoder_type == "LSTM":
+                        if policy_network.decoder.trainable_state:
+                            writer.add_histogram('params/init_state', policy_network.decoder.init_state, episode)
 
 
         # Evaluation
@@ -492,7 +513,6 @@ def train(formula,
                                     writer.add_scalars('eval_buffer/logits', {f'x[{i},{out}]': buffer.action_logits[0][i][out] for i in range(num_variables)}, episode)  # batch0, var_i, unormalized p(x_i)
                                     writer.add_scalars('eval_buffer/probs', {f'x[{i},{out}]': buffer.action_probs[0][i][out] for i in range(num_variables)}, episode) # batch0, var_i, p(x_i)
                                 
-
                             else:
                                 idx = num_sat.argmax().item()
                                 writer.add_scalars('eval_buffer/actions', {f'x[{i}]': buffer.action[idx][i] for i in range(num_variables)}, episode)
@@ -509,7 +529,6 @@ def train(formula,
 
         #if mean_entropy.item() <= entropy_value:
         #    patience_counter += 1
-        
 
         if (episode == num_episodes) or (active_search['num_sat'] == m): # or (early_stopping and (patience_counter >= patience)):
             if episode == num_episodes:

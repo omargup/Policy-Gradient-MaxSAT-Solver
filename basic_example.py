@@ -41,13 +41,12 @@ config = {
     "dense_size":128,
 
     # Training
-    "num_episodes": 1500,  #4000
+    "num_episodes": 2000,  #4000
     "accumulation_episodes": 1,
     "batch_size": 10,  #10
     "permute_vars": True,
     "permute_seed": None,  # 2147483647
     "clip_grad": 1,
-    "entropy_weight": 0,
     "lr": 0.00001,  # 0.00015   0.00001
 
     # Baseline
@@ -58,6 +57,8 @@ config = {
     # Exploration
     "logit_clipping": None,  # {None, int >= 1}
     "logit_temp": None,  # {None, int >= 1}. Useful for improve exploration in evaluation.
+    "entropy_estimator": 'crude',  # {'crude', 'smooth'}
+    "beta_entropy": 0.03,  # float, beta >= 0.
 
     # Regularization
     "early_stopping": False,
