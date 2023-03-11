@@ -75,8 +75,8 @@ def get_config(new_config=None):
         "tensorboard_on": True,
         "extra_logging": False,  # log TrainableState's weights
         "raytune": False,
-        "progress_bar": True,
         "data_dir": None,
+        "verbose": 1,  # {0, 1, 2}. If raytune is True, then verbose is set to 0.
 
         "log_dir": 'logs',
         "output_dir": 'outputs',
@@ -108,6 +108,10 @@ def get_config(new_config=None):
     # Conext embedding size
     if config["dec_context_initializer"] == "EmptyContext":
         config['context_emb_size'] = 0
+    
+    # Verbose
+    if config["raytune"]:
+        config["verbose"] = 0
     
     # Saving configuration
     with open(os.path.join(config['save_dir'], "config.json"), 'w') as f:

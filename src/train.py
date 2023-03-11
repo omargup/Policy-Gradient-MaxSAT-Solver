@@ -274,10 +274,10 @@ def train(formula,
           extra_logging = False,
           raytune = False,
           run_name = None,  #-->ok
-          progress_bar = False,  #-->ok
           early_stopping= False,
           patience=5,
-          entropy_value=0.01):
+          entropy_value=0.01,
+          verbose=1):
     """ Train a parametric policy following Policy Gradient Theorem
     
     ARGUMENTS
@@ -304,36 +304,41 @@ def train(formula,
         extra_logging
         raytune
         run_name
-        progress_bar
         dimacs_dir
         early_stopping
         patience
         entropy_value
+        verbose
     
     RETURNS
     --------
         active_search: dic. 
     """
-    print(f"\nStart training for run-id {run_name}")
+    
+    if verbose == 0:
+        progress_bar = False
+    elif (verbose == 1) or (verbose == 2):
+        progress_bar = True
+    else:
+        raise ValueError(f'Verbose must be 0, 1, or 2, got {verbose}.') 
+
+    if verbose > 0:
+        print(f"\nStart training for run-id {run_name}")
 
     # Put model in train mode
     policy_network.to(device)
     policy_network.train()
     optimizer.zero_grad()
 
-    # Initialize entropy weight decay
-    #entropy_decay = utils.EntropyWeightDecay(max=entropy_weight, min=0, steps=1000)
-
     # Active search solution
     active_search = {'episode': 0,
+                     'samples': 0,
                      'num_sat': 0,
                      'strategy': None,
                      'sol': None,
-                     'total_episodes':0}
-
-    #patience_counter = 0
-    m = len(formula)
-
+                     'total_episodes':0,
+                     'total_samples':0}
+    
     for episode in tqdm(range(1, num_episodes + 1), disable=not progress_bar, ascii=True):
         
         buffer = run_episode(num_variables=num_variables,
@@ -412,22 +417,23 @@ def train(formula,
         
         # Logging
         if (episode % log_interval) == 0:
-
             num_sat_mean = num_sat.mean().item()
             log_prob_mean = log_prob.mean().item()
             H_mean = H.mean().item()
 
             # Log values to screen
-            print(f'\nEpisode: {episode}, num_sat: {num_sat_mean}')
-            print('\tpg_loss: - ({} - {}) * {} + ({} * {}) = {}'.format(num_sat_mean,
-                                                                        baseline_val.item(),
-                                                                        log_prob_mean,
-                                                                        beta_entropy,
-                                                                        H_mean,
-                                                                        pg_loss.item()))
+            if verbose > 0:
+                print(f'\nEpisode: {episode}, num_sat: {num_sat_mean}')
+                print('\tpg_loss: - ({} - {}) * {} + ({} * {}) = {}'.format(num_sat_mean,
+                                                                            baseline_val.item(),
+                                                                            log_prob_mean,
+                                                                            beta_entropy,
+                                                                            H_mean,
+                                                                            pg_loss.item()))
             
-            #print(f'logits: \n{buffer.action_logits}')
-            #print(f'probs: \n{buffer.action_probs}')
+            if verbose == 2:
+                print(f'logits: \n{buffer.action_logits}')
+                print(f'probs: \n{buffer.action_probs}')
 
             if writer is not None:
                 writer.add_scalar('num_sat', num_sat_mean, episode, new_style=True)
@@ -452,8 +458,9 @@ def train(formula,
 
         # Evaluation
         if (episode % eval_interval) == 0:
-            print('-------------------------------------------------')
-            print(f'Evaluation in episode: {episode}. Num of sat clauses:')
+            if verbose > 0:
+                print('-------------------------------------------------')
+                print(f'Evaluation in episode: {episode}. Num of sat clauses:')
             policy_network.eval()
             with torch.no_grad():
                 
@@ -477,21 +484,22 @@ def train(formula,
                     # Log values to screen
                     if strat == 0:
                         number_of_sat = num_sat.item()
-                        print(f'\tGreedy: {number_of_sat}.')
+                        if verbose > 0:
+                            print(f'\tGreedy: {number_of_sat}.')
+
                         
-                        #if episode == num_episodes:
-                        #    print(buffer.action.detach())
-                        #    print(buffer.action_logits.detach())
-                        #    print(buffer.action_probs.detach())
                     
                     else:
                         number_of_sat = num_sat.max().item()
-                        print(f'\tBest of {strat} samples: {number_of_sat}.')
+                        if verbose > 0:
+                            print(f'\tBest of {strat} samples: {number_of_sat}.')
+
                     
                     # Keep tracking the active search solution
                     if number_of_sat > active_search['num_sat']:
                         active_search['num_sat'] = number_of_sat
                         active_search['episode'] = episode
+                        active_search['samples'] = episode * batch_size
                         active_search['strategy'] = f"{'greedy' if strat == 0 else 'sampled'}{'' if strat == 0 else '-'+str(strat)}"
 
                         if strat == 0:
@@ -499,7 +507,6 @@ def train(formula,
                         else:
                             idx = num_sat.argmax().item()
                             active_search['sol'] = buffer.action[idx].detach().tolist()    
-                                  
 
                     if writer is not None:
                         writer.add_scalar(f"eval/{'greedy' if strat == 0 else 'sampled'}{'' if strat == 0 else '-'+str(strat)}",
@@ -520,34 +527,42 @@ def train(formula,
                                     writer.add_scalars('eval_buffer/logits', {f'x[{i},{out}]': buffer.action_logits[idx][i][out] for i in range(num_variables)}, episode)  # batch idx, var_i, unormalized p(x_i)
                                     writer.add_scalars('eval_buffer/probs', {f'x[{i},{out}]': buffer.action_probs[idx][i][out] for i in range(num_variables)}, episode) # batch idx, var_i, p(x_i)
             
+
+
             policy_network.train()
 
-            print(f"\tActive search: {active_search['num_sat']}.")
-            print('-------------------------------------------------\n')
+            if verbose > 0:
+                print(f"\tActive search: {active_search['num_sat']}.")
+                print('-------------------------------------------------\n')
             if writer is not None:
                 writer.add_scalar('active_search', active_search['num_sat'], episode, new_style=True)
 
         #if mean_entropy.item() <= entropy_value:
         #    patience_counter += 1
 
-        if (episode == num_episodes) or (active_search['num_sat'] == m): # or (early_stopping and (patience_counter >= patience)):
+        #m=len(formula)
+        if (episode == num_episodes): # or (active_search['num_sat'] == m): # or (early_stopping and (patience_counter >= patience)):
             if episode == num_episodes:
                 criteria = 'Maximum number of episodes reached'
-            elif active_search['num_sat'] == m:
+            elif active_search['num_sat'] == len(formula):
                 criteria = 'All clauses have been satisfied'
             else:
                 criteria = 'Early stoping'
-            print('-------------------------------------------------')
-            print(f'Optimization process finished at episode {episode}.')
-            print(f'Stop creiteria: {criteria}.')
-            print(f"Active search results:")
-            print(f"\tNum_sat: {active_search['num_sat']}")
-            print(f"\tEpisode: {active_search['episode']}")
-            print(f"\tStrategy: {active_search['strategy']}")
-            print("\tSol:")
-            print(active_search['sol'])
-            print('-------------------------------------------------\n')
             
+            if verbose > 0:
+                print('-------------------------------------------------')
+                print(f'Optimization process finished at episode {episode}.')
+                print(f'Number of samples {episode * batch_size}.')
+                print(f'Stop creiteria: {criteria}.')
+                print(f"Active search results:")
+                print(f"\tNum_sat: {active_search['num_sat']}")
+                print(f"\tEpisode: {active_search['episode']}")
+                print(f"\tStrategy: {active_search['strategy']}")
+                print("\tSol:")
+                print(active_search['sol'])
+                print('-------------------------------------------------\n')
+            
+            active_search['total_samples'] = episode * batch_size
             active_search['total_episodes'] = episode
             break
 

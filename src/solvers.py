@@ -16,6 +16,8 @@ from src.train import train
 import src.utils as utils
 from src.base_config import get_config
 
+from ray import air, tune
+from ray.tune.schedulers import ASHAScheduler
 
 # from ray.air import session
 from PyMiniSolvers import minisolvers
@@ -52,6 +54,10 @@ def pg_solver(config):
     config = get_config(config)
     pp.pprint(config)
 
+    # Verbose
+    if (config['verbose'] < 0) or (config['verbose'] > 2) or (type(config['verbose']) != int): 
+        raise ValueError(f"`config['verbose']` must be 0, 1 or 2, got {config['verbose']}.") 
+
     # Tensorboard
     writer = None
     if config['tensorboard_on']:
@@ -61,14 +67,16 @@ def pg_solver(config):
     device = 'cpu'
     if config['gpu']:
         device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    print(f'n\Running on {device}.')
+    if config['verbose'] > 0:
+        print(f'n\Running on {device}.')
     
     # Data
     if config['data_dir'] is None:
         raise ValueError("`config[data_dir]` can not be None.") 
     n, m, formula = utils.dimacs2list(dimacs_path = config['data_dir'])
     num_variables = n
-    print(f"Formula loaded from: {config['data_dir']}.")
+    if config['verbose'] > 0:
+        print(f"Formula loaded from: {config['data_dir']}.")
 
     # Node2vec embeddings
     if config['node2vec'] == False:
@@ -90,9 +98,11 @@ def pg_solver(config):
         if config['n2v_pretrained']:
             if os.path.isfile(node2vec_file):
                 n2v_emb = torch.load(node2vec_file)
-                print(f"Node2Vec embeddings of size {config['n2v_dim']} loaded from: {node2vec_file}.")
+                if config['verbose'] > 0:
+                    print(f"Node2Vec embeddings of size {config['n2v_dim']} loaded from: {node2vec_file}.")
             else:
-                print(f"No Node2Vec embeddings of size {config['n2v_dim']} have been created.")
+                if config['verbose'] > 0:
+                    print(f"No Node2Vec embeddings of size {config['n2v_dim']} have been created.")
         
         # Runs node2vec algorithm if not pretrained or not found
         if n2v_emb is None:
@@ -184,10 +194,11 @@ def pg_solver(config):
                                    dec_var_initializer=initialize_dec_var,
                                    dec_context_initializer=initialize_dec_context)
     
-    print("\n")
-    utils.params_summary(policy_network)
-
-    print(policy_network)
+    #print("\n")
+    #utils.params_summary(policy_network)
+    if config['verbose'] > 0:
+        print("\n")
+        print(policy_network)
     
     optimizer = optim.Adam(policy_network.parameters(), lr=config['lr'])
 
@@ -214,7 +225,7 @@ def pg_solver(config):
     else:
         raise ValueError(f'{config["baseline"]} is not a valid baseline.')
     
-    active_search = train(formula= formula,
+    active_search = train(formula=formula,
                           num_variables=num_variables,
                           policy_network=policy_network,
                           optimizer=optimizer,
@@ -237,10 +248,10 @@ def pg_solver(config):
                           extra_logging = config['extra_logging'],
                           raytune = config['raytune'],
                           run_name = f"{config['run_name']}-{config['run_id']}",
-                          progress_bar = config['progress_bar'],
                           early_stopping=config['early_stopping'], 
                           patience=config['patience'],
-                          entropy_value=config['entropy_value'])
+                          entropy_value=config['entropy_value'],
+                          verbose = config['verbose'])  #{0, 1, 2}
 
     # Saving best solution
     with open(os.path.join(config['save_dir'], "solution.json"), 'w') as f:

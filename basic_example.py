@@ -71,8 +71,8 @@ config = {
     "tensorboard_on": True,
     "extra_logging": False,  # log TrainableState's weights
     "raytune": False,
-    "progress_bar": True,
     "data_dir": os.path.abspath('data/sat_rand/sat_rand_n=0020_k=03_m=0040_i=1.cnf'),
+    "verbose": 1,  # {0, 1, 2}. If raytune is True, then verbose is set to 0.
 
     "log_dir": 'logs',
     "output_dir": 'outputs',
