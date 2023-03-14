@@ -314,6 +314,9 @@ def train(formula,
     --------
         active_search: dic. 
     """
+    if raytune:
+        report_dict = {}
+        verbose = 0
     
     if verbose == 0:
         progress_bar = False
@@ -486,14 +489,16 @@ def train(formula,
                         number_of_sat = num_sat.item()
                         if verbose > 0:
                             print(f'\tGreedy: {number_of_sat}.')
-
+                        if raytune:
+                            report_dict['num_sat_greedy'] = number_of_sat
                         
                     
                     else:
                         number_of_sat = num_sat.max().item()
                         if verbose > 0:
                             print(f'\tBest of {strat} samples: {number_of_sat}.')
-
+                        if raytune:
+                            report_dict[f'num_sat_sample_{str(strat)}'] = number_of_sat
                     
                     # Keep tracking the active search solution
                     if number_of_sat > active_search['num_sat']:
@@ -527,7 +532,12 @@ def train(formula,
                                     writer.add_scalars('eval_buffer/logits', {f'x[{i},{out}]': buffer.action_logits[idx][i][out] for i in range(num_variables)}, episode)  # batch idx, var_i, unormalized p(x_i)
                                     writer.add_scalars('eval_buffer/probs', {f'x[{i},{out}]': buffer.action_probs[idx][i][out] for i in range(num_variables)}, episode) # batch idx, var_i, p(x_i)
             
-
+            if raytune:
+                # episode, samples, num_sat_greedy, num_sat_sample_k
+                report_dict['episode'] = episode
+                report_dict['samples'] = episode * batch_size        
+                session.report(report_dict)#,
+                            #checkpoint=checkpoint)
 
             policy_network.train()
 
