@@ -52,7 +52,8 @@ def minisat_solver(n, formula):
 def pg_solver(config):
     # Configuration parameters
     config = get_config(config)
-    pp.pprint(config)
+    if not config["raytune"]:
+        pp.pprint(config)
 
     # Verbose
     if (config['verbose'] < 0) or (config['verbose'] > 2) or (type(config['verbose']) != int): 
