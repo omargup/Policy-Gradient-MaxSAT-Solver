@@ -7,6 +7,11 @@ from ray.tune.search import ConcurrencyLimiter
 from ray.tune.search.optuna import OptunaSearch
 import optuna
 
+############################################
+# This example runs a hyperparameters search
+# with optuna and raytune.
+############################################
+
 config = {
     # Encoder
     "node2vec": True,  # {False, True}
