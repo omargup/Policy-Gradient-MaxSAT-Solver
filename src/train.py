@@ -17,6 +17,7 @@ from ray.air.checkpoint import Checkpoint
 import os
 import time
 from tqdm import tqdm
+import json
 
 
 
@@ -55,7 +56,7 @@ def run_episode(num_variables,
                 permute_vars=False,
                 permute_seed=None,  # e.g.: 2147483647 
                 logit_clipping=None,  # {None, int >= 1}
-                logit_temp=None):  # {None, int >= 1}        
+                logit_temp=None):  # {None, float >= 1}        
     """
     Runs an episode and returns an updated buffer.
     """
@@ -261,7 +262,7 @@ def train(formula,
           permute_seed=None,  #-->ok
           baseline=None, 
           logit_clipping=None,  # {None, int >= 1}
-          logit_temp=None,  # {None, int >= 1}
+          logit_temp=None,  # {None, float >= 1}
           entropy_estimator='crude',  # {'crude', 'smooth'}
           beta_entropy=0,  
           clip_grad=None,
@@ -273,7 +274,8 @@ def train(formula,
           writer = None,  # Tensorboard writer
           extra_logging = False,
           raytune = False,
-          run_name = None,  #-->ok
+          run_name = None, 
+          save_dir = 'outputs',
           early_stopping= False,
           patience=5,
           entropy_value=0.01,
@@ -339,8 +341,8 @@ def train(formula,
                      'num_sat': 0,
                      'strategy': None,
                      'sol': None,
-                     'total_episodes':0,
-                     'total_samples':0}
+                     'total_episodes': 0,
+                     'total_samples': 0}
     
     for episode in tqdm(range(1, num_episodes + 1), disable=not progress_bar, ascii=True):
         
@@ -352,7 +354,7 @@ def train(formula,
                              permute_vars=permute_vars,
                              permute_seed=permute_seed,
                              logit_clipping=logit_clipping,  # {None, int >= 1}
-                             logit_temp=1)  # {None, int >= 1}  
+                             logit_temp=1)  # {None, float >= 1}  
         
         policy_network.eval()
         with torch.no_grad():
@@ -478,7 +480,7 @@ def train(formula,
                                          permute_vars = permute_vars,
                                          permute_seed = permute_seed,
                                          logit_clipping=logit_clipping,  # {None, int >= 1}
-                                         logit_temp=logit_temp)  # {None, int >= 1}  )
+                                         logit_temp=logit_temp)  # {None, float >= 1}  )
             
                     # Compute num of sat clauses
                     num_sat = utils.num_sat_clauses_tensor(formula, buffer.action.detach()).detach()
@@ -532,6 +534,12 @@ def train(formula,
                                     writer.add_scalars('eval_buffer/logits', {f'x[{i},{out}]': buffer.action_logits[idx][i][out] for i in range(num_variables)}, episode)  # batch idx, var_i, unormalized p(x_i)
                                     writer.add_scalars('eval_buffer/probs', {f'x[{i},{out}]': buffer.action_probs[idx][i][out] for i in range(num_variables)}, episode) # batch idx, var_i, p(x_i)
             
+            # Saving the best solution so far
+            active_search['total_samples'] = episode * batch_size
+            active_search['total_episodes'] = episode
+            with open(os.path.join(save_dir, "solution.json"), 'w') as f:
+                json.dump(active_search, f, indent=4)
+            
             if raytune:
                 # episode, samples, num_sat_greedy, num_sat_sample_k
                 report_dict['episode'] = episode
@@ -572,8 +580,6 @@ def train(formula,
                 print(active_search['sol'])
                 print('-------------------------------------------------\n')
             
-            active_search['total_samples'] = episode * batch_size
-            active_search['total_episodes'] = episode
             break
 
     return active_search

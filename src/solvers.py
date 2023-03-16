@@ -249,14 +249,15 @@ def pg_solver(config):
                           extra_logging = config['extra_logging'],
                           raytune = config['raytune'],
                           run_name = f"{config['run_name']}-{config['run_id']}",
+                          save_dir = config['save_dir'],
                           early_stopping=config['early_stopping'], 
                           patience=config['patience'],
                           entropy_value=config['entropy_value'],
                           verbose = config['verbose'])  #{0, 1, 2}
 
     # Saving best solution
-    with open(os.path.join(config['save_dir'], "solution.json"), 'w') as f:
-        json.dump(active_search, f, indent=True)
+    #with open(os.path.join(config['save_dir'], "solution.json"), 'w') as f:
+    #    json.dump(active_search, f, indent=True)
 
     if config['tensorboard_on']:
        writer.close()
