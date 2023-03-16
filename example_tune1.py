@@ -67,7 +67,7 @@ config = {
 
     # Exploration
     "logit_clipping": None,  # {None, int >= 1}
-    "logit_temp": None,  # {None, int >= 1}. Useful for improve exploration in evaluation.
+    "logit_temp": None,  # {None, float >= 1}. Useful for improve exploration in evaluation.
     "entropy_estimator": 'crude',  # {'crude', 'smooth'}
     "beta_entropy": 0.03,  # float, beta >= 0.
 

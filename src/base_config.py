@@ -64,7 +64,7 @@ def get_config(new_config=None):
             
             # Exploration
             "logit_clipping": None,  # {None, int >= 1}
-            "logit_temp": None,  # {None, int >= 1}
+            "logit_temp": None,  # {None, float >= 1}
             "entropy_estimator": 'crude',  # {'crude', 'smooth'}
             "beta_entropy": 0,  # float, beta >= 0.
 
@@ -87,7 +87,7 @@ def get_config(new_config=None):
             "exp_name": 'exp',
             "run_name": 'run',
             "gpu": True,
-            "checkpoint_dir": None} # <--------- missing
+            "checkpoint_dir": None}
     
         # Update default config
         for key in new_config:
