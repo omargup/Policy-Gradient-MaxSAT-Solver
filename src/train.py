@@ -253,20 +253,20 @@ def run_episode(num_variables,
 
 
 def train(formula,
-          num_variables,  #-->ok
-          policy_network,  #-->ok
-          optimizer,  #-->ok
-          device,  #-->ok
-          batch_size=1,  #-->ok
-          permute_vars=False,  #-->ok
-          permute_seed=None,  #-->ok
-          baseline=None, 
+          num_variables, 
+          policy_network,
+          optimizer,
+          device,
+          batch_size=1,
+          permute_vars=False,
+          permute_seed=None,
+          baseline=None,
           logit_clipping=None,  # {None, int >= 1}
           logit_temp=None,  # {None, float >= 1}
           entropy_estimator='crude',  # {'crude', 'smooth'}
           beta_entropy=0,  
           clip_grad=None,
-          num_episodes=5000,
+          num_samples=15000,
           accumulation_episodes=1,
           log_interval=100,
           eval_interval=100,
@@ -344,7 +344,10 @@ def train(formula,
                      'total_episodes': 0,
                      'total_samples': 0}
     
+    num_episodes = int(np.ceil(num_samples / batch_size))
     for episode in tqdm(range(1, num_episodes + 1), disable=not progress_bar, ascii=True):
+
+        current_samples = episode * batch_size
         
         buffer = run_episode(num_variables=num_variables,
                              policy_network=policy_network,
@@ -428,7 +431,7 @@ def train(formula,
 
             # Log values to screen
             if verbose > 0:
-                print(f'\nEpisode: {episode}, num_sat: {num_sat_mean}')
+                print(f'\nEpisode: {episode}, samples: {current_samples}, num_sat: {num_sat_mean}')
                 print('\tpg_loss: - ({} - {}) * {} + ({} * {}) = {}'.format(num_sat_mean,
                                                                             baseline_val.item(),
                                                                             log_prob_mean,
@@ -441,31 +444,31 @@ def train(formula,
                 print(f'probs: \n{buffer.action_probs}')
 
             if writer is not None:
-                writer.add_scalar('num_sat', num_sat_mean, episode, new_style=True)
-                writer.add_scalar('baseline', baseline_val.item(), episode, new_style=True)
-                writer.add_scalar('log_prob', log_prob_mean, episode, new_style=True)
+                writer.add_scalar('num_sat', num_sat_mean, current_samples, new_style=True)
+                writer.add_scalar('baseline', baseline_val.item(), current_samples, new_style=True)
+                writer.add_scalar('log_prob', log_prob_mean, current_samples, new_style=True)
 
-                writer.add_scalar('pg_loss', -((num_sat_mean - baseline_val.item()) * log_prob_mean), episode, new_style=True)
-                writer.add_scalar('pg_loss_with_ent', -((num_sat_mean - baseline_val.item()) * log_prob_mean + (beta_entropy * H_mean)), episode, new_style=True)
+                writer.add_scalar('pg_loss', -((num_sat_mean - baseline_val.item()) * log_prob_mean), current_samples, new_style=True)
+                writer.add_scalar('pg_loss_with_ent', -((num_sat_mean - baseline_val.item()) * log_prob_mean + (beta_entropy * H_mean)), current_samples, new_style=True)
                 
-                writer.add_scalar('entropy/beta', beta_entropy, episode, new_style=True)
-                writer.add_scalar('entropy/entropy', H_mean, episode, new_style=True)
-                writer.add_scalar('entropy/beta*entropy', beta_entropy * H_mean, episode, new_style=True)
+                writer.add_scalar('entropy/beta', beta_entropy, current_samples, new_style=True)
+                writer.add_scalar('entropy/entropy', H_mean, current_samples, new_style=True)
+                writer.add_scalar('entropy/beta*entropy', beta_entropy * H_mean, current_samples, new_style=True)
 
                 if extra_logging:
-                    writer.add_histogram('histogram/action_logits', buffer.action_logits, episode)
-                    writer.add_histogram('histogram/action_probs', buffer.action_probs, episode)
+                    writer.add_histogram('histogram/action_logits', buffer.action_logits, current_samples)
+                    writer.add_histogram('histogram/action_probs', buffer.action_probs, current_samples)
                     
                     if policy_network.decoder.decoder_type == "GRU" or policy_network.decoder.decoder_type == "LSTM":
                         if policy_network.decoder.trainable_state:
-                            writer.add_histogram('params/init_state', policy_network.decoder.init_state, episode)
+                            writer.add_histogram('params/init_state', policy_network.decoder.init_state, current_samples)
 
 
         # Evaluation
         if (episode % eval_interval) == 0:
             if verbose > 0:
                 print('-------------------------------------------------')
-                print(f'Evaluation in episode: {episode}. Num of sat clauses:')
+                print(f'Evaluation in episode: {episode}. Num samples: {current_samples}. Num of sat clauses:')
             policy_network.eval()
             with torch.no_grad():
                 
@@ -506,7 +509,7 @@ def train(formula,
                     if number_of_sat > active_search['num_sat']:
                         active_search['num_sat'] = number_of_sat
                         active_search['episode'] = episode
-                        active_search['samples'] = episode * batch_size
+                        active_search['samples'] = current_samples
                         active_search['strategy'] = f"{'greedy' if strat == 0 else 'sampled'}{'' if strat == 0 else '-'+str(strat)}"
 
                         if strat == 0:
@@ -517,25 +520,25 @@ def train(formula,
 
                     if writer is not None:
                         writer.add_scalar(f"eval/{'greedy' if strat == 0 else 'sampled'}{'' if strat == 0 else '-'+str(strat)}",
-                                          number_of_sat, episode, new_style=True)
+                                          number_of_sat, current_samples, new_style=True)
                         
                         if extra_logging:
                             dec_output_size = policy_network.decoder.dense_out.bias.shape[0]  # decoder's output can be of size 1 or 2.
                             if strat == 0:
-                                writer.add_scalars('eval_buffer/actions', {f'x[{i}]': buffer.action[0][i] for i in range(num_variables)}, episode)
+                                writer.add_scalars('eval_buffer/actions', {f'x[{i}]': buffer.action[0][i] for i in range(num_variables)}, current_samples)
                                 for out in range(dec_output_size):
-                                    writer.add_scalars('eval_buffer/logits', {f'x[{i},{out}]': buffer.action_logits[0][i][out] for i in range(num_variables)}, episode)  # batch0, var_i, unormalized p(x_i)
-                                    writer.add_scalars('eval_buffer/probs', {f'x[{i},{out}]': buffer.action_probs[0][i][out] for i in range(num_variables)}, episode) # batch0, var_i, p(x_i)
+                                    writer.add_scalars('eval_buffer/logits', {f'x[{i},{out}]': buffer.action_logits[0][i][out] for i in range(num_variables)}, current_samples)  # batch0, var_i, unormalized p(x_i)
+                                    writer.add_scalars('eval_buffer/probs', {f'x[{i},{out}]': buffer.action_probs[0][i][out] for i in range(num_variables)}, current_samples) # batch0, var_i, p(x_i)
                                 
                             else:
                                 idx = num_sat.argmax().item()
-                                writer.add_scalars('eval_buffer/actions', {f'x[{i}]': buffer.action[idx][i] for i in range(num_variables)}, episode)
+                                writer.add_scalars('eval_buffer/actions', {f'x[{i}]': buffer.action[idx][i] for i in range(num_variables)}, current_samples)
                                 for out in range(dec_output_size):
-                                    writer.add_scalars('eval_buffer/logits', {f'x[{i},{out}]': buffer.action_logits[idx][i][out] for i in range(num_variables)}, episode)  # batch idx, var_i, unormalized p(x_i)
-                                    writer.add_scalars('eval_buffer/probs', {f'x[{i},{out}]': buffer.action_probs[idx][i][out] for i in range(num_variables)}, episode) # batch idx, var_i, p(x_i)
+                                    writer.add_scalars('eval_buffer/logits', {f'x[{i},{out}]': buffer.action_logits[idx][i][out] for i in range(num_variables)}, current_samples)  # batch idx, var_i, unormalized p(x_i)
+                                    writer.add_scalars('eval_buffer/probs', {f'x[{i},{out}]': buffer.action_probs[idx][i][out] for i in range(num_variables)}, current_samples) # batch idx, var_i, p(x_i)
             
             # Saving the best solution so far
-            active_search['total_samples'] = episode * batch_size
+            active_search['total_samples'] = current_samples
             active_search['total_episodes'] = episode
             with open(os.path.join(save_dir, "solution.json"), 'w') as f:
                 json.dump(active_search, f, indent=4)
@@ -543,7 +546,7 @@ def train(formula,
             if raytune:
                 # episode, samples, num_sat_greedy, num_sat_sample_k
                 report_dict['episode'] = episode
-                report_dict['samples'] = episode * batch_size        
+                report_dict['samples'] = current_samples        
                 session.report(report_dict)#,
                             #checkpoint=checkpoint)
 
@@ -553,27 +556,28 @@ def train(formula,
                 print(f"\tActive search: {active_search['num_sat']}.")
                 print('-------------------------------------------------\n')
             if writer is not None:
-                writer.add_scalar('active_search', active_search['num_sat'], episode, new_style=True)
+                writer.add_scalar('active_search', active_search['num_sat'], current_samples, new_style=True)
 
         #if mean_entropy.item() <= entropy_value:
         #    patience_counter += 1
 
         #m=len(formula)
-        if (episode == num_episodes): # or (active_search['num_sat'] == m): # or (early_stopping and (patience_counter >= patience)):
-            if episode == num_episodes:
-                criteria = 'Maximum number of episodes reached'
-            elif active_search['num_sat'] == len(formula):
-                criteria = 'All clauses have been satisfied'
-            else:
-                criteria = 'Early stoping'
+        if (current_samples == num_samples): # or (active_search['num_sat'] == m): # or (early_stopping and (patience_counter >= patience)):
+            criteria = 'Maximum number of episodes reached'
+
+            # elif active_search['num_sat'] == len(formula):
+            #     criteria = 'All clauses have been satisfied'
+            # else:
+            #     criteria = 'Early stoping'
             
             if verbose > 0:
                 print('-------------------------------------------------')
                 print(f'Optimization process finished at episode {episode}.')
-                print(f'Number of samples {episode * batch_size}.')
+                print(f'Number of samples {current_samples}.')
                 print(f'Stop creiteria: {criteria}.')
                 print(f"Active search results:")
                 print(f"\tNum_sat: {active_search['num_sat']}")
+                print(f"\tSamples: {active_search['samples']}")
                 print(f"\tEpisode: {active_search['episode']}")
                 print(f"\tStrategy: {active_search['strategy']}")
                 print("\tSol:")

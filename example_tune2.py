@@ -70,7 +70,7 @@ def define_by_run_func(trial):
     #"dense_size":128,  # Useful for Transformer
 
     # Training
-    "num_episodes": 1500,  #4000
+    "num_samples": 15000,  #4000
     "accumulation_episodes": 1,
     #"batch_size": 10,  #10
     "permute_vars": True,

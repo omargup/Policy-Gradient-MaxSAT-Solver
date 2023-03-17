@@ -49,7 +49,7 @@ def get_config(new_config=None):
             "dense_size": 256,
 
             # Training
-            "num_episodes": 5000,
+            "num_samples": 15000,
             "accumulation_episodes": 1,
             "batch_size": 1,
             "permute_vars": True,

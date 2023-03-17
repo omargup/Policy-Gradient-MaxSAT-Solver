@@ -240,7 +240,7 @@ def pg_solver(config):
                           entropy_estimator=config['entropy_estimator'],
                           beta_entropy = config['beta_entropy'],
                           clip_grad = config['clip_grad'],
-                          num_episodes = config['num_episodes'],
+                          num_samples = config['num_samples'],
                           accumulation_episodes = config['accumulation_episodes'],
                           log_interval = config['log_interval'],
                           eval_interval = config['eval_interval'],

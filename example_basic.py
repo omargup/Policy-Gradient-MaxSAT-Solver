@@ -41,7 +41,7 @@ config = {
     "dense_size":128,
 
     # Training
-    "num_episodes": 2000,  #4000
+    "num_samples": 20000,  #4000
     "accumulation_episodes": 1,
     "batch_size": 10,  #10
     "permute_vars": True,
