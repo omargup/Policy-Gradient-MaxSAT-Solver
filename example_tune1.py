@@ -57,7 +57,7 @@ config = {
     "batch_size": 10,  #10
     "permute_vars": True,
     "permute_seed": None,  # 2147483647
-    "clip_grad": 1,
+    "clip_grad": 1,  # {None, float}
     "lr": 0.00001,  # 0.00015   0.00001
 
     # Baseline

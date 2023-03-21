@@ -265,7 +265,7 @@ def train(formula,
           logit_temp=None,  # {None, float >= 1}
           entropy_estimator='crude',  # {'crude', 'smooth'}
           beta_entropy=0,  
-          clip_grad=None,
+          clip_grad=None,  # {None, float}
           num_samples=15000,
           accumulation_episodes=1,
           log_interval=100,
