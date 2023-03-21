@@ -54,7 +54,7 @@ def get_config(new_config=None):
             "batch_size": 1,
             "permute_vars": True,
             "permute_seed": None,  # 2147483647
-            "clip_grad": 1,
+            "clip_grad": 1,  # {None, float}
             "lr": 0.00015,  # 0.00015
 
             # Baseline
@@ -93,6 +93,42 @@ def get_config(new_config=None):
         for key in new_config:
             config[key] = new_config[key]
     
+        # Delete unused entries
+        if not config["node2vec"]:
+            del config["n2v_dir"]
+            del config["n2v_dim"]
+            del config["n2v_pretrained"]
+            del config["n2v_walk_len"]
+            del config["n2v_context_size"]
+            del config["n2v_walks_per_node"]
+            del config["n2v_p"]
+            del config["n2v_q"]
+            del config["n2v_batch_size"]
+            del config["n2v_lr"]
+            del config["n2v_num_epochs"]
+            del config["n2v_workers"]
+            del config["n2v_verbose"]
+        
+        if config["decoder"] == "Transformer":
+            del config["hidden_size"]
+            del config["trainable_state"]
+        else:  # GRU or LSTM
+            del config["num_heads"]
+            del config["dense_size"]
+
+        if not config["permute_vars"]: 
+            del config["permute_seed"]
+        
+        if (config["decoder"] is None) or (config["decoder"] == "greedy"):
+           del config["alpha_ema"]
+           del config["k_samples"]
+        elif config["decoder"] == "sample":
+           del config["alpha_ema"]
+        else:  # "ema"
+           del config["k_samples"]
+
+    
+    # Set default config
     if config['run_name'] is None:
         config['run_name'] = 'run'
     if config['exp_name'] is None:
