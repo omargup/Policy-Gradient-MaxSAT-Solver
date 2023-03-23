@@ -116,8 +116,8 @@ def get_config(new_config=None):
             del config["num_heads"]
             del config["dense_size"]
 
-        if not config["permute_vars"]: 
-            del config["permute_seed"]
+        #if not config["permute_vars"]: 
+        #    del config["permute_seed"]
         
         if (config["baseline"] is None) or (config["baseline"] == "greedy"):
            del config["alpha_ema"]
