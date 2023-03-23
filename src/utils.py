@@ -29,7 +29,7 @@ def vars_permutation(num_variables,
     """
     if permute_vars:
         if permute_seed is not None:
-            gen = torch.Generator(device=device)
+            gen = torch.Generator()
             permutation = torch.cat([torch.randperm(num_variables, generator=gen.manual_seed(permute_seed)).unsqueeze(0) for _ in range(batch_size)], dim=0).permute(1,0)
         else:
             permutation = torch.cat([torch.randperm(num_variables).unsqueeze(0) for _ in range(batch_size)], dim=0).permute(1,0)
