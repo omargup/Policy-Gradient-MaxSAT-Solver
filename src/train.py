@@ -26,17 +26,17 @@ class Buffer():
     """
     Tracks episode's relevant information.
     """
-    def __init__(self, batch_size, num_variables, dec_output_size) -> None:
+    def __init__(self, batch_size, num_variables, dec_output_size, device) -> None:
         # Episode Buffer
-        self.action_logits = torch.empty(size=(batch_size, num_variables, dec_output_size))
+        self.action_logits = torch.empty(size=(batch_size, num_variables, dec_output_size)).to(device)
         # buffer_action_logits: [batch_size, seq_len=num_variables, feature_size=1or2]
-        self.action_probs = torch.empty(size=(batch_size, num_variables, dec_output_size))
+        self.action_probs = torch.empty(size=(batch_size, num_variables, dec_output_size)).to(device)
         # buffer_action_probs: [batch_size, seq_len=num_variables, feature_size=1or2]
-        self.action = torch.empty(size=(batch_size, num_variables), dtype = torch.int64)
+        self.action = torch.empty(size=(batch_size, num_variables), dtype = torch.int64).to(device)
         # buffer_action: [batch_size, seq_len=num_variables]
-        self.action_log_prob = torch.empty(size=(batch_size, num_variables))
+        self.action_log_prob = torch.empty(size=(batch_size, num_variables)).to(device)
         # buffer_action_log_prob: [batch_size, seq_len=num_variables]
-        #self.entropy = torch.empty(size=(batch_size, num_variables))
+        #self.entropy = torch.empty(size=(batch_size, num_variables)).to(device)
         # buffer_entropy: [batch_size, seq_len=num_variables]
     
     def update(self, idx, t, action_logits, action_probs, action, action_log_prob):
@@ -80,7 +80,7 @@ def run_episode(num_variables,
     dec_output_size = policy_network.decoder.output_size
     assert (dec_output_size == 1) or (dec_output_size == 2), f"In run_episode. Decoder's output shape[-1]: {dec_output_size}"
     
-    buffer = Buffer(batch_size, num_variables, dec_output_size)
+    buffer = Buffer(batch_size, num_variables, dec_output_size, device)
     batch_idx = [i for i in range(batch_size)]
 
     permutation = utils.vars_permutation(num_variables,
@@ -101,15 +101,15 @@ def run_episode(num_variables,
                 dim0 = policy_network.dec_init_state[0].shape[0]
                 dim1 = batch_size
                 dim2 = policy_network.dec_init_state[0].shape[2]
-                state = (policy_network.dec_init_state[0].expand(dim0, dim1, dim2).to(device), \
-                         policy_network.dec_init_state[1].expand(dim0, dim1, dim2).to(device))
+                state = (policy_network.dec_init_state[0].expand(dim0, dim1, dim2).contiguous().to(device), \
+                         policy_network.dec_init_state[1].expand(dim0, dim1, dim2).contiguous().to(device))
                 # state h: [num_layers, batch_size, hidden_size]
                 # state c: [num_layers, batch_size, hidden_size]
             else:  # GRU
                 dim0 = policy_network.dec_init_state.shape[0]
                 dim1 = batch_size
                 dim2 = policy_network.dec_init_state.shape[2]
-                state = policy_network.dec_init_state.expand(dim0, dim1, dim2).to(device)
+                state = policy_network.dec_init_state.expand(dim0, dim1, dim2).contiguous().to(device)
                 # state: [num_layers, batch_size, hidden_size]
         else:
             state = None
@@ -367,7 +367,7 @@ def train(formula,
             # num_sat: [batch_size]
 
             # Compute baseline
-            baseline_val = torch.tensor(0, dtype=float).detach()
+            baseline_val = torch.tensor(0, dtype=float).detach().to(device)
             if baseline is not None:
                 baseline_val = baseline(formula=formula,
                                         num_variables=num_variables,
@@ -409,7 +409,9 @@ def train(formula,
         # buffer.action_log_prob: [batch_size, seq_len=num_variables]
         log_prob = buffer.action_log_prob.sum(dim=-1)
         # log_prob: [batch_size]
-        pg_loss = - ((num_sat - baseline_val) * log_prob + (beta_entropy * H)).mean()
+        #print("Devices:")
+        #print(num_sat.get_device(), baseline_val.get_device(), log_prob.get_device(), H.get_device())
+        pg_loss = - ((num_sat.to(device) - baseline_val.to(device)) * log_prob + (beta_entropy * H)).mean()
         # Normalize loss for gradient accumulation
         loss = pg_loss / accumulation_episodes
 
