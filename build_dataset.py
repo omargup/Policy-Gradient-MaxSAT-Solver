@@ -17,7 +17,7 @@ def toy_dataset():
     print("Building toy_dataset")
 
     # Build Uniform random instances
-    dir_name = 'data'
+    dir_name = 'data/toy'
     data_name = 'toy'
     n_list = [5, 10, 15]
     r_list = [1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0]
@@ -28,13 +28,14 @@ def toy_dataset():
 
     for n in tqdm(n_list):
         for r in r_list:
+            m = int(np.around(n * r))
             # Instantiate a sat generator
             sat_gen = URGenerator(min_n=n,
                                   max_n=n,
                                   min_k=k,
                                   max_k=k,
-                                  min_m=int(n * r),
-                                  max_m=int(n * r))
+                                  min_m=m,
+                                  max_m=m)
 
             sat_clauses = 0
             while sat_clauses < num_instances:
@@ -55,42 +56,41 @@ def toy_dataset():
 def rand_dataset():
     """
     This function generates the following instances:
-    For k=3 and n=[20, 30, 40]:
-        - 5 Uniform random instances with r=2.0
-        - 5 Uniform random instances with r=2.5
-        - 5 Uniform random instances with r=3.0
-        - 5 Uniform random instances with r=3.5
-        - 5 Uniform random instances with r=4.0
-        - 5 Uniform random instances with r=4.5
+    For k=3 and n=[20, 30, ..., 100]:
+        - 11 Uniform random instances with r=[1.0, 1.5, ..., 5.0]
+
     """
     print("Building rand_dataset")
 
     # Build Uniform random instances
-    dir_name = 'data'
+    dir_name = 'data/rand'
     data_name = 'rand'
     n_list = [20, 30, 40, 50, 60, 70, 80, 90, 100]
-    r_list = [2.0, 2.5, 3.0, 3.5, 4.0, 4.5]
+    r_list = [1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.2, 4.4, 4.6, 4.8, 5.0]
     k = 3
-    num_instances = 5
+    num_instances = 11
 
     np.random.seed(98702)
 
     for n in tqdm(n_list):
         for r in r_list:
+            m = int(np.around(n * r))
+            dir_name1 = f'{dir_name}/{n:04d}/{m:04d}'
+            
             # Instantiate a sat generator
             sat_gen = URGenerator(min_n=n,
                                 max_n=n,
                                 min_k=k,
                                 max_k=k,
-                                min_m=int(n * r),
-                                max_m=int(n * r))
+                                min_m=m,
+                                max_m=m)
 
             for i in range(1, num_instances + 1):
                 # Create a uniform random sat formula
                 n, m, r, formula = sat_gen.generate_formula()
 
                 # Saving the formula
-                filename = sat_gen.get_filename(dir_name, data_name, i)
+                filename = sat_gen.get_filename(dir_name1, data_name, i)
                 sat_gen.save(n, formula, filename)
 
 
@@ -106,7 +106,7 @@ def sat_rand_dataset():
     print("Building sat_rand_dataset")
 
     # Build Uniform random instances
-    dir_name = 'data'
+    dir_name = 'data/sat_rand'
     data_name = 'sat_rand'
     n_list = [20, 30, 40, 50, 60, 70, 80, 90, 100]
     r_list = [2.0, 2.5, 3.0, 3.5, 4.0, 4.5]
@@ -117,13 +117,14 @@ def sat_rand_dataset():
 
     for n in tqdm(n_list):
         for r in r_list:
+            m = int(np.around(n * r))
             # Instantiate a sat generator
             sat_gen = URGenerator(min_n=n,
                                   max_n=n,
                                   min_k=k,
                                   max_k=k,
-                                  min_m=int(n * r),
-                                  max_m=int(n * r))
+                                  min_m=m,
+                                  max_m=m)
 
             sat_clauses = 0
             while sat_clauses < num_instances:
@@ -150,7 +151,7 @@ def sr_dataset():
     print("Building sr_dataset")
 
     # Build SR random instances
-    dir_name = 'data'
+    dir_name = 'data/sr'
     data_name = 'sr'
     n_list = [20, 30, 40]
     p_bernoulli = 0.7 
