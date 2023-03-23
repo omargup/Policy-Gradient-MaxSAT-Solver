@@ -325,9 +325,17 @@ def train(formula,
     elif (verbose == 1) or (verbose == 2):
         progress_bar = True
     else:
-        raise ValueError(f'Verbose must be 0, 1, or 2, got {verbose}.') 
-
+        raise ValueError(f'Verbose must be 0, 1, or 2, got {verbose}.')
+    
+    # Number of parameters
+    total_params = sum(p.numel() for p in policy_network.parameters())
+    trainable_params = sum(p.numel() for p in policy_network.parameters() if p.requires_grad)
+        
     if verbose > 0:
+        print("\n")
+        print(policy_network) 
+        print(f"\nTotal params: {total_params}")
+        print(f"\nTrainable params: {trainable_params}")
         print(f"\nStart training for run-id {run_name}")
 
     # Put model in train mode
@@ -342,7 +350,8 @@ def train(formula,
                      'strategy': None,
                      'sol': None,
                      'total_episodes': 0,
-                     'total_samples': 0}
+                     'total_samples': 0,
+                     'trainable params': trainable_params}
     
     num_episodes = int(np.ceil(num_samples / batch_size))
     for episode in tqdm(range(1, num_episodes + 1), disable=not progress_bar, ascii=True):
@@ -574,8 +583,9 @@ def train(formula,
             
             if verbose > 0:
                 print('-------------------------------------------------')
-                print(f'Optimization process finished at episode {episode}.')
-                print(f'Number of samples {current_samples}.')
+                print(f'Optimization process finished at episode: {episode}.')
+                print(f'Number of samples: {current_samples}.')
+                print(f'Number or trainable parameters: {trainable_params}.')
                 print(f'Stop creiteria: {criteria}.')
                 print(f"Active search results:")
                 print(f"\tNum_sat: {active_search['num_sat']}")
