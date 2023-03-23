@@ -221,7 +221,7 @@ def pg_solver(config):
         baseline = RolloutBaseline(num_rollouts=-1)
     elif config['baseline'] == 'sample':
         if (type(config['k_samples']) != int) or (config['k_samples'] < 1):
-            raise ValueError(f"`k_samples` must be an integer equeal or greater than 1.")
+            raise ValueError(f"`k_samples` must be an integer equeal or greater than 1 got {config['k_samples']} with type: {type(config['k_samples'])}.")
         baseline = RolloutBaseline(num_rollouts=config['k_samples'])
     else:
         raise ValueError(f'{config["baseline"]} is not a valid baseline.')

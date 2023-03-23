@@ -119,10 +119,10 @@ def get_config(new_config=None):
         if not config["permute_vars"]: 
             del config["permute_seed"]
         
-        if (config["decoder"] is None) or (config["decoder"] == "greedy"):
+        if (config["baseline"] is None) or (config["baseline"] == "greedy"):
            del config["alpha_ema"]
            del config["k_samples"]
-        elif config["decoder"] == "sample":
+        elif config["baseline"] == "sample":
            del config["alpha_ema"]
         else:  # "ema"
            del config["k_samples"]
