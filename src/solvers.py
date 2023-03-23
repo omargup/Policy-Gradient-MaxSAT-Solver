@@ -201,7 +201,7 @@ def pg_solver(config):
         print("\n")
         print(policy_network)
     
-    optimizer = optim.Adam(policy_network.parameters(), lr=config['lr'])
+    optimizer = optim.Adam(policy_network.parameters(), lr=config['lr'], maximize=True)
 
 #     if config['raytune']:
 #         loaded_checkpoint = session.get_checkpoint()

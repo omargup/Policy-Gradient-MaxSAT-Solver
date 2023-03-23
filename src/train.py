@@ -411,7 +411,7 @@ def train(formula,
         # log_prob: [batch_size]
         #print("Devices:")
         #print(num_sat.get_device(), baseline_val.get_device(), log_prob.get_device(), H.get_device())
-        pg_loss = - ((num_sat.to(device) - baseline_val.to(device)) * log_prob + (beta_entropy * H)).mean()
+        pg_loss = ((num_sat.to(device) - baseline_val.to(device)) * log_prob + (beta_entropy * H)).mean()
         # Normalize loss for gradient accumulation
         loss = pg_loss / accumulation_episodes
 
@@ -434,7 +434,7 @@ def train(formula,
             # Log values to screen
             if verbose > 0:
                 print(f'\nEpisode: {episode}, samples: {current_samples}, num_sat: {num_sat_mean}')
-                print('\tpg_loss: - ({} - {}) * {} + ({} * {}) = {}'.format(num_sat_mean,
+                print('\tpg_loss: ({} - {}) * {} + ({} * {}) = {}'.format(num_sat_mean,
                                                                             baseline_val.item(),
                                                                             log_prob_mean,
                                                                             beta_entropy,
@@ -450,8 +450,8 @@ def train(formula,
                 writer.add_scalar('baseline', baseline_val.item(), current_samples, new_style=True)
                 writer.add_scalar('log_prob', log_prob_mean, current_samples, new_style=True)
 
-                writer.add_scalar('pg_loss', -((num_sat_mean - baseline_val.item()) * log_prob_mean), current_samples, new_style=True)
-                writer.add_scalar('pg_loss_with_ent', -((num_sat_mean - baseline_val.item()) * log_prob_mean + (beta_entropy * H_mean)), current_samples, new_style=True)
+                writer.add_scalar('pg_loss', (num_sat_mean - baseline_val.item()) * log_prob_mean, current_samples, new_style=True)
+                writer.add_scalar('pg_loss_with_ent', (num_sat_mean - baseline_val.item()) * log_prob_mean + (beta_entropy * H_mean), current_samples, new_style=True)
                 
                 writer.add_scalar('entropy/beta', beta_entropy, current_samples, new_style=True)
                 writer.add_scalar('entropy/entropy', H_mean, current_samples, new_style=True)
