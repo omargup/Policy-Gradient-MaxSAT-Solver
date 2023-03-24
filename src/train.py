@@ -438,7 +438,7 @@ def train(formula,
 
             # Log values to screen
             if verbose > 0:
-                print(f'\nEpisode: {episode}, samples: {current_samples}, num_sat: {num_sat_mean}')
+                print(f'\nEpisode: {episode}, samples: {current_samples}/{num_samples}, num_sat: {num_sat_mean}')
                 print('\tpg_loss: ({} - {}) * {} + ({} * {}) = {}'.format(num_sat_mean,
                                                                             baseline_val.item(),
                                                                             log_prob_mean,
@@ -475,7 +475,7 @@ def train(formula,
         if (episode % eval_interval) == 0:
             if verbose > 0:
                 print('-------------------------------------------------')
-                print(f'Evaluation in episode: {episode}. Num samples: {current_samples}. Num of sat clauses:')
+                print(f'Evaluation in episode: {episode}. Num samples: {current_samples}/{num_samples}. Num of sat clauses:')
             policy_network.eval()
             with torch.no_grad():
                 
@@ -565,42 +565,30 @@ def train(formula,
             if writer is not None:
                 writer.add_scalar('active_search', active_search['num_sat'], current_samples, new_style=True)
 
-
+    
         if (current_samples == num_samples):
             criteria = 'Maximum number of episodes reached'
-            if verbose > 0:
-                print('-------------------------------------------------')
-                print(f'Optimization process finished at episode: {episode}.')
-                print(f'Number of samples: {current_samples}.')
-                print(f'Number or trainable parameters: {trainable_params}.')
-                print(f'Stop creiteria: {criteria}.')
-                print(f"Active search results:")
-                print(f"\tNum_sat: {active_search['num_sat']}")
-                print(f"\tSamples: {active_search['samples']}")
-                print(f"\tEpisode: {active_search['episode']}")
-                print(f"\tStrategy: {active_search['strategy']}")
-                print("\tSol:")
-                print(active_search['sol'])
-                print('-------------------------------------------------\n')
+            break
+ 
         elif sat_stopping and (active_search['num_sat'] == len(formula)):
             criteria = 'All clauses have been satisfied'
-            if verbose > 0:
-                print('-------------------------------------------------')
-                print(f'Optimization process finished at episode: {episode}.')
-                print(f'Number of samples: {current_samples}.')
-                print(f'Number or trainable parameters: {trainable_params}.')
-                print(f'Stop creiteria: {criteria}.')
-                print(f"Active search results:")
-                print(f"\tNum_sat: {active_search['num_sat']}")
-                print(f"\tSamples: {active_search['samples']}")
-                print(f"\tEpisode: {active_search['episode']}")
-                print(f"\tStrategy: {active_search['strategy']}")
-                print("\tSol:")
-                print(active_search['sol'])
-                print('-------------------------------------------------\n')
-            
             break
-
+            
+    if verbose > 0:
+        print('-------------------------------------------------')
+        print(f'Optimization process finished at episode: {episode}.')
+        print(f'Number of samples: {current_samples}.')
+        print(f'Number or trainable parameters: {trainable_params}.')
+        print(f'Stop creiteria: {criteria}.')
+        print(f"Active search results:")
+        print(f"\tNum_sat: {active_search['num_sat']}")
+        print(f"\tSamples: {active_search['samples']}")
+        print(f"\tEpisode: {active_search['episode']}")
+        print(f"\tStrategy: {active_search['strategy']}")
+        print("\tSol:")
+        print(active_search['sol'])
+        print('-------------------------------------------------\n')
+        
     return active_search
 
 
