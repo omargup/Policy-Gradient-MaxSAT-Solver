@@ -53,6 +53,7 @@ def pg_solver(config):
     # Configuration parameters
     config = get_config(config)
     if not config["raytune"]:
+        print("\n")
         pp.pprint(config)
 
     # Verbose
@@ -69,7 +70,7 @@ def pg_solver(config):
     if config['gpu']:
         device = 'cuda' if torch.cuda.is_available() else 'cpu'
     if config['verbose'] > 0:
-        print(f'n\Running on {device}.')
+        print(f'\nRunning on {device}.')
     
     # Data
     if config['data_dir'] is None:
@@ -77,7 +78,7 @@ def pg_solver(config):
     n, m, formula = utils.dimacs2list(dimacs_path = config['data_dir'])
     num_variables = n
     if config['verbose'] > 0:
-        print(f"Formula loaded from: {config['data_dir']}.")
+        print(f"\nFormula loaded from: {config['data_dir']}.")
 
     # Node2vec embeddings
     if config['node2vec'] == False:
@@ -100,10 +101,10 @@ def pg_solver(config):
             if os.path.isfile(node2vec_file):
                 n2v_emb = torch.load(node2vec_file)
                 if config['verbose'] > 0:
-                    print(f"Node2Vec embeddings of size {config['n2v_dim']} loaded from: {node2vec_file}.")
+                    print(f"\nNode2Vec embeddings of size {config['n2v_dim']} loaded from: {node2vec_file}.")
             else:
                 if config['verbose'] > 0:
-                    print(f"No Node2Vec embeddings of size {config['n2v_dim']} have been created.")
+                    print(f"\nNo Node2Vec embeddings of size {config['n2v_dim']} have been created.")
         
         # Runs node2vec algorithm if not pretrained or not found
         if n2v_emb is None:
@@ -194,12 +195,6 @@ def pg_solver(config):
                                    decoder=decoder,  
                                    dec_var_initializer=initialize_dec_var,
                                    dec_context_initializer=initialize_dec_context)
-    
-    #print("\n")
-    #utils.params_summary(policy_network)
-    if config['verbose'] > 0:
-        print("\n")
-        print(policy_network)
     
     optimizer = optim.Adam(policy_network.parameters(), lr=config['lr'], maximize=True)
 
