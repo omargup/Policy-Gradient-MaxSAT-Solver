@@ -276,9 +276,7 @@ def train(formula,
           raytune = False,
           run_name = None, 
           save_dir = 'outputs',
-          early_stopping= False,
-          patience=5,
-          entropy_value=0.01,
+          sat_stopping= False,  # {True, False}. Stop when num_sat is equal with the num of clauses.
           verbose=1):
     """ Train a parametric policy following Policy Gradient Theorem
     
@@ -307,9 +305,7 @@ def train(formula,
         raytune
         run_name
         dimacs_dir
-        early_stopping
-        patience
-        entropy_value
+        sat_stopping
         verbose
     
     RETURNS
@@ -569,18 +565,25 @@ def train(formula,
             if writer is not None:
                 writer.add_scalar('active_search', active_search['num_sat'], current_samples, new_style=True)
 
-        #if mean_entropy.item() <= entropy_value:
-        #    patience_counter += 1
 
-        #m=len(formula)
-        if (current_samples == num_samples): # or (active_search['num_sat'] == m): # or (early_stopping and (patience_counter >= patience)):
+        if (current_samples == num_samples):
             criteria = 'Maximum number of episodes reached'
-
-            # elif active_search['num_sat'] == len(formula):
-            #     criteria = 'All clauses have been satisfied'
-            # else:
-            #     criteria = 'Early stoping'
-            
+            if verbose > 0:
+                print('-------------------------------------------------')
+                print(f'Optimization process finished at episode: {episode}.')
+                print(f'Number of samples: {current_samples}.')
+                print(f'Number or trainable parameters: {trainable_params}.')
+                print(f'Stop creiteria: {criteria}.')
+                print(f"Active search results:")
+                print(f"\tNum_sat: {active_search['num_sat']}")
+                print(f"\tSamples: {active_search['samples']}")
+                print(f"\tEpisode: {active_search['episode']}")
+                print(f"\tStrategy: {active_search['strategy']}")
+                print("\tSol:")
+                print(active_search['sol'])
+                print('-------------------------------------------------\n')
+        elif sat_stopping and (active_search['num_sat'] == len(formula)):
+            criteria = 'All clauses have been satisfied'
             if verbose > 0:
                 print('-------------------------------------------------')
                 print(f'Optimization process finished at episode: {episode}.')

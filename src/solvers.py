@@ -245,9 +245,7 @@ def pg_solver(config):
                           raytune = config['raytune'],
                           run_name = f"{config['run_name']}-{config['run_id']}",
                           save_dir = config['save_dir'],
-                          early_stopping=config['early_stopping'], 
-                          patience=config['patience'],
-                          entropy_value=config['entropy_value'],
+                          sat_stopping=config['sat_stopping'], 
                           verbose = config['verbose'])  #{0, 1, 2}
 
     # Saving best solution

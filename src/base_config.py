@@ -68,11 +68,8 @@ def get_config(new_config=None):
             "entropy_estimator": 'crude',  # {'crude', 'smooth'}
             "beta_entropy": 0,  # float, beta >= 0.
 
-            # Regularization
-            "early_stopping": False,
-            "patience": 5,
-            "entropy_value": 0,
-
+            # Misc
+            "sat_stopping": False,  # {True, False}. Stop when num_sat is equal with the num of clauses.
             "log_interval": 100,
             "eval_interval": 200,
             "eval_strategies": [0, 5],
