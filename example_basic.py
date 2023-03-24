@@ -1,6 +1,12 @@
 from src.solvers import pg_solver
 import os
 
+############################################
+# This example runs an active search trying to find
+# an assignment that maximizes the number of satisfied
+# clauses of the given formula. 
+############################################
+
 config = {
     # Encoder
     "node2vec": True,  # (bool).
