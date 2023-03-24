@@ -85,7 +85,7 @@ class URGenerator(BaseCNFGenerator):
         else:
             m_name = f"_minm={self.min_m:04d}_maxm={self.max_m:04d}"
 
-        filename = dir_name + "/" + data_name + n_name + k_name + m_name + f"_i={i}" + ".cnf"
+        filename = dir_name + "/" + data_name + n_name + k_name + m_name + f"_i={i:02d}" + ".cnf"
         
         return filename
 
@@ -149,7 +149,7 @@ class SRGenerator(BaseCNFGenerator):
         else:
             s_name = f"_s=F"
 
-        filename = dir_name + "/" + data_name + n_name + "_1" + b_name + g_name + s_name + f"_i={i}" + ".cnf"
+        filename = dir_name + "/" + data_name + n_name + "_1" + b_name + g_name + s_name + f"_i={i:02d}" + ".cnf"
         
         return filename
 
