@@ -22,7 +22,7 @@ def get_config(new_config=None):
             "n2v_q": 1,  # (float).
             "n2v_batch_size": 32,  # (int).
             "n2v_lr": 0.01,  # (float).
-            "n2v_num_epochs": 100,  # (int).
+            "n2v_num_epochs": 150,  # (int).
             "n2v_workers": 0,  # (int). {0, 1, 2, 3, 4}
             "n2v_verbose": 1,  # (int). {0, 1, 2}
 
