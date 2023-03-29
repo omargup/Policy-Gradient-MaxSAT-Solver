@@ -69,12 +69,12 @@ config = {
     # Misc
     "sat_stopping": True,  # (bool). Stop when num_sat is equal with the num of clauses.
     "log_interval": 20,  # (int).
-    "eval_interval": 100,  # (int).
+    "eval_interval": 50,  # (int).
     "eval_strategies": [0, 32],  # (list of ints). 0 for greedy search, k >= 1 for k samples.
     "tensorboard_on": True,  # (bool).
     "extra_logging": False,  # (bool). Log Trainable state's weights.
     "raytune": False,  # (bool).
-    "data_dir": os.path.abspath('data/rand/0020/0040/rand_n=0020_k=03_m=0040_i=1.cnf'),  # (str).
+    "data_dir": os.path.abspath('data/rand/0020/0040/rand_n=0020_k=03_m=0040_i=01.cnf'),  # (str).
     "verbose": 1,  # {0, 1, 2}. If raytune is True, then verbose is set to 0.
 
     "log_dir": 'logs',  # (str).
@@ -82,7 +82,7 @@ config = {
     "exp_name": 'ex_basic',  # (str).
     "run_name": 'run',  # (str).
     "gpu": True,  # (bool).
-    "checkpoint_dir": None} 
+    "checkpoint_dir": 'checkpoints'}  # None | str
 
 
 pg_solver(config)

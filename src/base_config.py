@@ -84,7 +84,7 @@ def get_config(new_config=None):
             "exp_name": 'exp',  # (str).
             "run_name": 'run',  # (str).
             "gpu": True,  # (bool).
-            "checkpoint_dir": None}
+            "checkpoint_dir": 'checkpoints'}  # None | str
     
         # Update default config
         for key in new_config:
@@ -134,14 +134,27 @@ def get_config(new_config=None):
         config['log_dir'] = 'logs'
     if config['output_dir'] is None:
         config['output_dir'] = 'outputs'
+    if config['checkpoint_dir'] is None:
+        config['checkpoint_dir'] = 'checkpoints'
     
     # Generate run_id
     config['run_id'] = time.strftime("%Y%m%dT%H%M%S")
 
     # Set output directory
-    config['save_dir'] = os.path.join(config['output_dir'], config['exp_name'], f"{config['run_name']}-{config['run_id']}")
-    os.makedirs(config['save_dir'], exist_ok=True)
-
+    if config["raytune"]:
+        config['save_dir'] = config['output_dir']
+        os.makedirs(config['save_dir'], exist_ok=True)
+    else:
+        config['save_dir'] = os.path.join(config['output_dir'], config['exp_name'], f"{config['run_name']}-{config['run_id']}")
+        os.makedirs(config['save_dir'], exist_ok=True)
+    
+    config['log_dir'] = os.path.join(config['save_dir'], config['log_dir'])
+    os.makedirs(config['log_dir'], exist_ok=True)
+    
+    config['checkpoint_dir'] = os.path.join(config['save_dir'], config['checkpoint_dir'])
+    os.makedirs(config['checkpoint_dir'], exist_ok=True)
+    
+    
     # Conext embedding size
     if config["dec_context_initializer"] == "EmptyContext":
         config['context_emb_size'] = 0
@@ -149,11 +162,7 @@ def get_config(new_config=None):
     # Verbose
     if config["raytune"]:
         config["verbose"] = 0
-    
-    # Saving configuration
-    with open(os.path.join(config['save_dir'], "config.json"), 'w') as f:
-        json.dump(config, f, indent=True)
-    
+        
     return config
 
     

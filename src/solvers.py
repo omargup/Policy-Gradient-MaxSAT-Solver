@@ -55,6 +55,10 @@ def pg_solver(config):
     if not config["raytune"]:
         print("\n")
         pp.pprint(config)
+    
+    # Saving configuration
+    with open(os.path.join(config['save_dir'], "config.json"), 'w') as f:
+        json.dump(config, f, indent=True)
 
     # Verbose
     if (config['verbose'] < 0) or (config['verbose'] > 2) or (type(config['verbose']) != int): 
@@ -63,7 +67,7 @@ def pg_solver(config):
     # Tensorboard
     writer = None
     if config['tensorboard_on']:
-        writer = SummaryWriter(log_dir = os.path.join(config['log_dir'], config['exp_name'], f"{config['run_name']}-{config['run_id']}"))
+        writer = SummaryWriter(config['log_dir'])
     
     # Device  
     device = 'cpu'
@@ -99,7 +103,7 @@ def pg_solver(config):
         n2v_emb = None
         if config['n2v_pretrained']:
             if os.path.isfile(node2vec_file):
-                n2v_emb = torch.load(node2vec_file)
+                n2v_emb = torch.load(node2vec_file, map_location=device)
                 if config['verbose'] > 0:
                     print(f"\nNode2Vec embeddings of size {config['n2v_dim']} loaded from: {node2vec_file}.")
             else:
@@ -190,7 +194,7 @@ def pg_solver(config):
     # Network
     policy_network = PolicyNetwork(formula=formula,
                                    num_variables=num_variables,
-                                   n2v_emb=n2v_emb,
+                                   n2v_emb=n2v_emb.to(device),
                                    emb_module=emb_module,
                                    decoder=decoder,  
                                    dec_var_initializer=initialize_dec_var,
@@ -230,8 +234,8 @@ def pg_solver(config):
                           permute_vars = config['permute_vars'],
                           permute_seed = config['permute_seed'],
                           baseline = baseline,
-                          logit_clipping=config['logit_clipping'],  
-                          logit_temp=config['logit_temp'], 
+                          logit_clipping=config['logit_clipping'],
+                          logit_temp=config['logit_temp'],
                           entropy_estimator=config['entropy_estimator'],
                           beta_entropy = config['beta_entropy'],
                           clip_grad = config['clip_grad'],
@@ -239,18 +243,15 @@ def pg_solver(config):
                           accumulation_episodes = config['accumulation_episodes'],
                           log_interval = config['log_interval'],
                           eval_interval = config['eval_interval'],
-                          eval_strategies = config['eval_strategies'], # 0 for greedy, i < 0 takes i samples and returns the best one.
-                          writer = writer,  # Tensorboard writer
+                          eval_strategies = config['eval_strategies'],
+                          writer = writer,
                           extra_logging = config['extra_logging'],
                           raytune = config['raytune'],
                           run_name = f"{config['run_name']}-{config['run_id']}",
                           save_dir = config['save_dir'],
-                          sat_stopping=config['sat_stopping'], 
-                          verbose = config['verbose'])  #{0, 1, 2}
-
-    # Saving best solution
-    #with open(os.path.join(config['save_dir'], "solution.json"), 'w') as f:
-    #    json.dump(active_search, f, indent=True)
+                          sat_stopping=config['sat_stopping'],
+                          verbose = config['verbose'],
+                          checkpoint_dir=config['checkpoint_dir'])
 
     if config['tensorboard_on']:
        writer.close()

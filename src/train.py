@@ -277,7 +277,8 @@ def train(formula,
           run_name = None, 
           save_dir = 'outputs',
           sat_stopping= False,  # {True, False}. Stop when num_sat is equal with the num of clauses.
-          verbose=1):
+          verbose=1,
+          checkpoint_dir='checkpoints'):
     """ Train a parametric policy following Policy Gradient Theorem
     
     ARGUMENTS
@@ -523,7 +524,9 @@ def train(formula,
                             active_search['sol'] = buffer.action.detach().tolist()
                         else:
                             idx = num_sat.argmax().item()
-                            active_search['sol'] = buffer.action[idx].detach().tolist()    
+                            active_search['sol'] = buffer.action[idx].detach().tolist() 
+                        
+                        torch.save(policy_network.state_dict(), os.path.join(checkpoint_dir, "best.pt"))   
 
                     if writer is not None:
                         writer.add_scalar(f"eval/{'greedy' if strat == 0 else 'sampled'}{'' if strat == 0 else '-'+str(strat)}",
@@ -550,12 +553,13 @@ def train(formula,
             with open(os.path.join(save_dir, "solution.json"), 'w') as f:
                 json.dump(active_search, f, indent=4)
             
+            torch.save(policy_network.state_dict(), os.path.join(checkpoint_dir, "last.pt")) 
+            
             if raytune:
                 # episode, samples, num_sat_greedy, num_sat_sample_k
                 report_dict['episode'] = episode
                 report_dict['samples'] = current_samples        
-                session.report(report_dict)#,
-                            #checkpoint=checkpoint)
+                session.report(report_dict)#, checkpoint=checkpoint)
 
             policy_network.train()
 
