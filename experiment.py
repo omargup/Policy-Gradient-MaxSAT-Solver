@@ -221,7 +221,7 @@ def hyper_search(instance_dir,
 
 
 data_path = 'data/rand'
-num_vars = 30
+num_vars = 40
 n_path = os.path.abspath(os.path.join(data_path, str(f'{num_vars:04d}')))
 
 m_paths = []
@@ -239,9 +239,9 @@ for m_path in m_paths:
     instance_path = n_m_paths[0]
     n, m, _ = utils.dimacs2list(instance_path)
     hyper_search(instance_dir=instance_path,
-                 num_samples= ((2*n)+m)*128,
+                 num_samples= ((2*n)+m)*64,
                  batch_size=32,
-                 exp_name=f'exp_{n:04d}/{n:04d}',
+                 exp_name=f'exp_{n:04d}/{m:04d}',
                  local_dir="experiments")
     
     # Run pg_solver for the rest of the instances
