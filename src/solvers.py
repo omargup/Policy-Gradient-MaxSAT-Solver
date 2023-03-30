@@ -194,7 +194,7 @@ def pg_solver(config):
     # Network
     policy_network = PolicyNetwork(formula=formula,
                                    num_variables=num_variables,
-                                   n2v_emb=n2v_emb.to(device),
+                                   n2v_emb=n2v_emb if n2v_emb is None else n2v_emb.to(device),
                                    emb_module=emb_module,
                                    decoder=decoder,  
                                    dec_var_initializer=initialize_dec_var,
