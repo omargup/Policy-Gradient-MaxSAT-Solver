@@ -165,9 +165,12 @@ if not n2v_emb_exist:  # Runs n2v algorithm if not pretrained or emb not found
                         num_workers=preconf['n2v_workers'],
                         verbose=preconf['n2v_verbose'])
         
+        
+sampler = optuna.samplers.TPESampler(n_startup_trials=10,
+                                     n_ei_candidates=24,
+                                     multivariate=True)
 
-search_alg = OptunaSearch(sampler=optuna.samplers.TPESampler(n_startup_trials=10,
-                                        n_ei_candidates=24, multivariate=True),
+search_alg = OptunaSearch(sampler=sampler,
                           space=define_by_run_func,
                           mode='max',
                           metric="num_sat_sample_32",)
