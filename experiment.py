@@ -11,6 +11,14 @@ from ray.tune.search import ConcurrencyLimiter
 from ray.tune.search.optuna import OptunaSearch
 import optuna
 
+import time
+
+def epoch_time(start_time: int, end_time: int):
+    elapsed_time = end_time - start_time
+    elapsed_mins = int(elapsed_time / 60)
+    elapsed_secs = int(elapsed_time - (elapsed_mins * 60))
+    return elapsed_mins, elapsed_secs
+
 ############################################
 # Experiment
 ############################################
@@ -49,6 +57,7 @@ def hyper_search(instance_dir,
             'gpu': True,
         } 
 
+        
         # Ensure the n2v embedding exists at n2v_dir/n2v_dim before running raytune.
         node2vec_dir = os.path.join(preconf['n2v_dir'], str(preconf['n2v_dim']))
         os.makedirs(node2vec_dir, exist_ok=True)
@@ -60,6 +69,7 @@ def hyper_search(instance_dir,
             if os.path.isfile(node2vec_file):
                 n2v_emb_exist = True
         if not n2v_emb_exist:  # Runs n2v algorithm if not pretrained or emb not found
+            torch.cuda.empty_cache()
             device = 'cpu'
             if preconf['gpu']:
                 device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -175,7 +185,7 @@ def hyper_search(instance_dir,
             config["optuna_by_run"] = True
             return config
         
-
+        torch.cuda.empty_cache()
         sampler = optuna.samplers.TPESampler(n_startup_trials=10,
                                             n_ei_candidates=24,
                                             multivariate=True)
@@ -220,28 +230,115 @@ def hyper_search(instance_dir,
         results = tuner.fit()
 
 
+local_dir = "experiments"
 data_path = 'data/rand'
 num_vars = 40
 n_path = os.path.abspath(os.path.join(data_path, str(f'{num_vars:04d}')))
 
+#####################################################
+# Running the hyperparameters searches              #
+#####################################################
+
+# # Finding all m values for that n
+# m_paths = []
+# for folder in os.listdir(n_path):
+#     m_paths.append(os.path.join(n_path, folder))
+# m_paths = sorted(m_paths)
+
+# # For each m value
+# for m_path in m_paths:
+#     # Find all instances
+#     n_m_paths = []
+#     for n_m_file in os.listdir(m_path):
+#         n_m_paths.append(os.path.join(m_path, n_m_file))
+#     n_m_paths = sorted(n_m_paths)
+    
+#     # Get the first instance (i=1) with that m and n
+#     instance_path = n_m_paths[0]
+#     n, m, _ = utils.dimacs2list(instance_path)
+    
+#     # Run hyper search for instance i=1 with n variables and m clauses
+#     exp_name = f'exp_{n:04d}/{m:04d}'
+#     hyper_search(instance_dir=instance_path,
+#                  num_samples= ((2*n)+m)*64,
+#                  batch_size=32,
+#                  exp_name=exp_name,
+#                  local_dir=local_dir)
+    
+
+#####################################################
+# Running pg_solver with the best hyperparameters   #
+# for the rest of the instances.                    #
+#####################################################
+
+start_time = time.time()
+
+# Finding all m values for that n
 m_paths = []
 for folder in os.listdir(n_path):
     m_paths.append(os.path.join(n_path, folder))
 m_paths = sorted(m_paths)
 
+# For each m value
 for m_path in m_paths:
+    # Find all instances
     n_m_paths = []
     for n_m_file in os.listdir(m_path):
         n_m_paths.append(os.path.join(m_path, n_m_file))
     n_m_paths = sorted(n_m_paths)
     
-    # Run hyper search for the instance i=1 with n variables and m clauses
+    # Get the first instance (i=1) with that m and n
     instance_path = n_m_paths[0]
     n, m, _ = utils.dimacs2list(instance_path)
-    hyper_search(instance_dir=instance_path,
-                 num_samples= ((2*n)+m)*64,
-                 batch_size=32,
-                 exp_name=f'exp_{n:04d}/{m:04d}',
-                 local_dir="experiments")
     
-    # Run pg_solver for the rest of the instances
+    # Finding the 8 hyperparameters searches for that instace
+    exp_name = f'exp_{n:04d}/{m:04d}'
+    assumps = list(itertools.product([True, False], repeat=3))
+    for assump in assumps:
+        # Assumptions
+        transformer_assump, node2vec_assump, baseline_assump = assump
+        exp_path = os.path.join(local_dir, f'{exp_name}/t-{int(transformer_assump)}_n-{int(node2vec_assump)}_b-{int(baseline_assump)}')
+        
+        # Load best config for this configuration
+        print(f"Loading results from {exp_path}...")
+        restored_tuner = tune.Tuner.restore(path=exp_path,
+                                            trainable=pg_solver)
+        results = restored_tuner.get_results()
+        best_config = results.get_best_result(metric="num_sat_sample_32", mode="max").config
+
+        # Run pg_solver for the rest of the instances
+        for i, path_i in enumerate(n_m_paths[1:6]):
+            exp_path2 = f'exp_{n:04d}/{m:04d}/t-{int(transformer_assump)}_n-{int(node2vec_assump)}_b-{int(baseline_assump)}'
+            run_name = f'run_i-{i+2}'
+            
+            # Update config
+            best_config['num_samples'] = ((2 * n) + m) * 128
+            best_config['sat_stopping'] = True
+            best_config['log_interval'] = 20
+            best_config['eval_interval'] = 20
+            best_config['eval_strategies'] = [0, 32]
+            best_config['tensorboard_on'] = True
+            best_config['raytune'] = False
+            best_config['data_dir'] = path_i
+            best_config['verbose'] = 1
+            best_config['log_dir'] = 'logs'
+            best_config['output_dir'] = 'outputs'
+            best_config['exp_name'] = exp_path2 
+            best_config['run_name'] = run_name
+            best_config['gpu'] = True
+            best_config['checkpoint_dir'] = 'checkpoints'
+            best_config['optuna_by_run'] = False
+            best_config['n2v_pretrained'] = True
+            
+            print()
+            print("-" * 80)
+            print("-" * 80)
+            print(f"Experiment: {exp_path2}")
+            print(f"Instance: {i+2}")
+            print("-" * 80)
+            torch.cuda.empty_cache()
+            pg_solver(best_config)
+
+end_time = time.time()
+mins, secs = epoch_time(start_time, end_time)
+print(f'Total time: {mins}m {secs}s')
