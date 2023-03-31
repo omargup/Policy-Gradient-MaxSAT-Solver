@@ -108,7 +108,7 @@ def pg_solver(config):
                     print(f"\nNode2Vec embeddings of size {config['n2v_dim']} loaded from: {node2vec_file}.")
             else:
                 if config['verbose'] > 0:
-                    print(f"\nNo Node2Vec embeddings of size {config['n2v_dim']} have been created.")
+                    print(f"\nNo Node2Vec embeddings of size {config['n2v_dim']} have been created yet.")
         
         # Runs node2vec algorithm if not pretrained or not found
         if n2v_emb is None:
@@ -127,6 +127,7 @@ def pg_solver(config):
                                      file_name=node2vec_filename,
                                      num_workers=config['n2v_workers'],
                                      verbose=config['n2v_verbose'])
+            print(f"\nThe {config['n2v_dim']}-dim Node2Vec embeddings of this instance has been created.")
 
     else:
         raise ValueError(f"{config['node2vec']} is not a valid value, try with True or False.")
