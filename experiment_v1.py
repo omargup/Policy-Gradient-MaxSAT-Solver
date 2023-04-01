@@ -13,11 +13,6 @@ import optuna
 
 import time
 
-def epoch_time(start_time: int, end_time: int):
-    elapsed_time = end_time - start_time
-    elapsed_mins = int(elapsed_time / 60)
-    elapsed_secs = int(elapsed_time - (elapsed_mins * 60))
-    return elapsed_mins, elapsed_secs
 
 ############################################
 # Experiment
@@ -230,40 +225,43 @@ def hyper_search(instance_dir,
         results = tuner.fit()
 
 
+num_vars = 40
+
 local_dir = "experiments"
 data_path = 'data/rand'
-num_vars = 40
+output_dir = 'outputs'
+log_dir = 'logs'
 n_path = os.path.abspath(os.path.join(data_path, str(f'{num_vars:04d}')))
 
 #####################################################
 # Running the hyperparameters searches              #
 #####################################################
 
-# # Finding all m values for that n
-# m_paths = []
-# for folder in os.listdir(n_path):
-#     m_paths.append(os.path.join(n_path, folder))
-# m_paths = sorted(m_paths)
+# Finding all m values for that n
+m_paths = []
+for folder in os.listdir(n_path):
+    m_paths.append(os.path.join(n_path, folder))
+m_paths = sorted(m_paths)
 
-# # For each m value
-# for m_path in m_paths:
-#     # Find all instances
-#     n_m_paths = []
-#     for n_m_file in os.listdir(m_path):
-#         n_m_paths.append(os.path.join(m_path, n_m_file))
-#     n_m_paths = sorted(n_m_paths)
+# For each m value
+for m_path in m_paths:
+    # Find all instances
+    n_m_paths = []
+    for n_m_file in os.listdir(m_path):
+        n_m_paths.append(os.path.join(m_path, n_m_file))
+    n_m_paths = sorted(n_m_paths)
     
-#     # Get the first instance (i=1) with that m and n
-#     instance_path = n_m_paths[0]
-#     n, m, _ = utils.dimacs2list(instance_path)
+    # Get the first instance (i=1) with that m and n
+    instance_path = n_m_paths[0]
+    n, m, _ = utils.dimacs2list(instance_path)
     
-#     # Run hyper search for instance i=1 with n variables and m clauses
-#     exp_name = f'exp_{n:04d}/{m:04d}'
-#     hyper_search(instance_dir=instance_path,
-#                  num_samples= ((2*n)+m)*64,
-#                  batch_size=32,
-#                  exp_name=exp_name,
-#                  local_dir=local_dir)
+    # Run hyper search for instance i=1 with n variables and m clauses
+    exp_name = f'exp_{n:04d}/{m:04d}'
+    hyper_search(instance_dir=instance_path,
+                 num_samples= ((2*n)+m)*64,
+                 batch_size=32,
+                 exp_name=exp_name,
+                 local_dir=local_dir)
     
 
 #####################################################
@@ -321,8 +319,8 @@ for m_path in m_paths:
             best_config['raytune'] = False
             best_config['data_dir'] = path_i
             best_config['verbose'] = 1
-            best_config['log_dir'] = 'logs'
-            best_config['output_dir'] = 'outputs'
+            best_config['log_dir'] = log_dir
+            best_config['output_dir'] = output_dir
             best_config['exp_name'] = exp_path2 
             best_config['run_name'] = run_name
             best_config['gpu'] = True
@@ -340,5 +338,5 @@ for m_path in m_paths:
             pg_solver(best_config)
 
 end_time = time.time()
-mins, secs = epoch_time(start_time, end_time)
+mins, secs = utils.control_time(start_time, end_time)
 print(f'Total time: {mins}m {secs}s')
