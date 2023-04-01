@@ -19,6 +19,13 @@ from tqdm import tqdm
 import os
 
 
+def control_time(start_time: int, end_time: int):
+    elapsed_time = end_time - start_time
+    elapsed_mins = int(elapsed_time / 60)
+    elapsed_secs = int(elapsed_time - (elapsed_mins * 60))
+    return elapsed_mins, elapsed_secs
+
+
 def vars_permutation(num_variables,
                      device,
                      batch_size = 1,
@@ -425,50 +432,81 @@ class EntropyWeightDecay:
         return self.weight
 
 
-
-
-
-
-
-def exp2plot(log_dir, img_path):
-    #log_dir = "logs/exp_full1"
-
-    reader = SummaryReader(log_dir, pivot=False, extra_columns={'dir_name'})
+def exp2plot(num_vars, exp_dir):
+    reader = SummaryReader(exp_dir, pivot=False, extra_columns={'dir_name'})
     df = reader.tensors
-
     # Keep only rows with tag == 'active_search'
     df = df[df['tag'] == 'active_search']
-
     # Keep only step and value columns
     df = df[['step', 'value', 'dir_name']]
-
-    instances = df['dir_name'].unique()
-
-    df_dic = []
-    for instance in instances:
-        df_instance = df[df['dir_name'] == instance]
-        num_sat = df_instance['value'].max()
-        n, m, idx = instance.split("/")
-        df_dic.append({"n": int(n), "m": int(m), "num_sat": num_sat})
-
-
-    df_sat = pd.DataFrame.from_dict(df_dic)
-    df_sat.insert(2, "r", df_sat["m"] / df_sat["n"])
-    df_sat.insert(3, "frac_sat", df_sat["num_sat"] / df_sat["m"])
-
-    df_sat.drop('m', inplace=True, axis=1)
-    df_sat.drop('num_sat', inplace=True, axis=1)
-
-
+    # Keep only the max num of sat clases reached
+    df = df.sort_values('value', ascending=True).drop_duplicates(['dir_name'], keep='last')
+    # Split dir_name into m, config and run id
+    df_str = df.dir_name.str.split('/', expand=True).rename(columns={0:'m', 1:'config', 2: 'run_id' }).drop([3], axis=1)
+    # Split run_id and get instance number
+    df_i = df_str.run_id.str.split('-', expand=True).rename(columns={1:'inst'}).drop([0,2], axis=1)
+    # Del run_id from df_str
+    df_str = df_str.drop(['run_id'], axis=1)
+    # Concat df_str and df_i
+    df_2 = pd.concat([df_str, df_i], axis=1)
+    # Concat df and df_2
+    df_results = pd.concat([df, df_2], axis=1)
+    # Del dir_name and step column from df_results
+    df_results = df_results.drop(['dir_name', 'step'], axis=1)
+    df_results['n'] = num_vars
+    df_results['m'] = df_results['m'].astype(float)
+    df_results.insert(5, 'r', df_results["m"] / df_results["n"])
+    df_results.insert(6, 'frac_sat', df_results["value"] / df_results["m"])
+    
     plt.figure(figsize = (10,6))
     sns.set_theme(style="whitegrid", palette="bright")
-    color_pallete = sns.color_palette("bright")
-    sns.lineplot(data=df_sat, x="r", y="frac_sat", hue="n", errorbar=('ci', 20), palette=color_pallete)
-    #ax.set(title='Variables assignments through episodes')
-    #ax.set_xticklabels([i for i in range(100, 5000+1, 500)])
+    #color_pallete = sns.color_palette("pastel")
+    #sns.lineplot(data=df_results, x="r", y="frac_sat", hue="config", err_style="bars", errorbar=('ci', 30), 
+    #              style='config',marker='o', dashes=False, linestyle=(0, (1, 10)), palette=color_pallete)
+    sns.lineplot(data=df_results, x="r", y="frac_sat", hue="config", err_style="band", errorbar=('ci', 30), 
+                  style='config',marker='o', dashes=False, linestyle='-')
     plt.tight_layout()
-    #plt.savefig(img_path)
     plt.show()
+
+# def exp2plot(log_dir, img_path):
+#     #log_dir = "logs/exp_full1"
+
+#     reader = SummaryReader(log_dir, pivot=False, extra_columns={'dir_name'})
+#     df = reader.tensors
+
+#     # Keep only rows with tag == 'active_search'
+#     df = df[df['tag'] == 'active_search']
+
+#     # Keep only step and value columns
+#     df = df[['step', 'value', 'dir_name']]
+
+#     instances = df['dir_name'].unique()
+
+#     df_dic = []
+#     for instance in instances:
+#         df_instance = df[df['dir_name'] == instance]
+#         num_sat = df_instance['value'].max()
+#         n, m, idx = instance.split("/")
+#         df_dic.append({"n": int(n), "m": int(m), "num_sat": num_sat})
+
+
+#     df_sat = pd.DataFrame.from_dict(df_dic)
+#     df_sat.insert(2, "r", df_sat["m"] / df_sat["n"])
+#     df_sat.insert(3, "frac_sat", df_sat["num_sat"] / df_sat["m"])
+
+#     df_sat.drop('m', inplace=True, axis=1)
+#     df_sat.drop('num_sat', inplace=True, axis=1)
+
+
+#     plt.figure(figsize = (10,6))
+#     sns.set_theme(style="whitegrid", palette="bright")
+#     color_pallete = sns.color_palette("bright")
+#     sns.lineplot(data=df_sat, x="r", y="frac_sat", hue="n", errorbar=('ci', 20), palette=color_pallete)
+#     #ax.set(title='Variables assignments through episodes')
+#     #ax.set_xticklabels([i for i in range(100, 5000+1, 500)])
+#     plt.tight_layout()
+#     #plt.savefig(img_path)
+#     plt.show()
 
 
 
