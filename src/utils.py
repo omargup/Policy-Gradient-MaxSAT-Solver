@@ -302,8 +302,8 @@ def node2vec(dimacs_path,
              verbose=2):
     """
     Computes node2vec embeddings.
-    If rautune is set to True, then no node2vec embeddings are returned
-    at the end of the training.
+    If raytune is set to True, then no node2vec embeddings are saved
+    and the value of the returned embeddings is None.
     
     PARAMETERS
     ----------
@@ -345,8 +345,9 @@ def node2vec(dimacs_path,
         if (verbose == 1) and (epoch == num_epochs - 1):
             print(f'Finish. Epoch: {epoch+1:02d}, Loss: {loss:.4f}')
         if raytune:       
-            session.report(report_dict)
+            session.report({'loss': loss, 'epoch': epoch+1}, checkpoint=None)
 
+    embeddings = None
     if not raytune:
         # Getting node embeddings
         with torch.no_grad():
@@ -358,10 +359,8 @@ def node2vec(dimacs_path,
         emb_path = os.path.join(save_path, file_name + ".pt")
         torch.save(embeddings, emb_path)
 
-        return embeddings
+    return embeddings
     
-    else:  # if raytune
-        return
 
 
 def node_emb2low_dim(node_embeddings, n, filename, dim=2, random_state=None):
