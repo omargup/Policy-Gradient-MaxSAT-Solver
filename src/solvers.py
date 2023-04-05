@@ -126,6 +126,7 @@ def pg_solver(config):
                                      save_path=node2vec_dir,
                                      file_name=node2vec_filename,
                                      num_workers=config['n2v_workers'],
+                                     raytune=False,
                                      verbose=config['n2v_verbose'])
             print(f"\nThe {config['n2v_dim']}-dim Node2Vec embeddings of this instance has been created.")
 

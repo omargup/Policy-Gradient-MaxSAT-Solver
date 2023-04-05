@@ -119,6 +119,7 @@ if not n2v_emb_exist:  # Runs n2v algorithm if not pretrained or emb not found
                         save_path=node2vec_dir,
                         file_name=node2vec_filename,
                         num_workers=config['n2v_workers'],
+                        raytune=False,
                         verbose=config['n2v_verbose'])
 
 # Search space
@@ -128,9 +129,11 @@ config["beta_entropy"] = tune.choice([0.01, 0.02, 0.03])
 config["output_size"] = tune.choice([1, 2])
 config["lr"] = tune.qloguniform(1e-6, 1e-4, 5e-7)  # Round to multiples of 0.0000005
 
-search_alg = OptunaSearch(sampler=optuna.samplers.TPESampler(n_startup_trials=10,
-                                                             n_ei_candidates=24,
-                                                             multivariate=True))
+sampler = optuna.samplers.TPESampler(n_startup_trials=10,
+                                     n_ei_candidates=24,
+                                     multivariate=True)
+
+search_alg = OptunaSearch(sampler=sampler)
 
 scheduler = ASHAScheduler(grace_period=6)
 
