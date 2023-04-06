@@ -191,3 +191,31 @@ for i, instance_dir in enumerate(paths):
                     scheduler_max_t=scheduler_max_t)
         
     
+#####################################################
+# Second step:                                      #
+# Build node2vec emb with the best hyperparameters  #
+#####################################################
+
+node2vec_dir = os.path.join(n2v_dir, str(n2v_dim))
+os.makedirs(node2vec_dir, exist_ok=True)
+
+for i, instance_dir in enumerate(paths):
+    tail = os.path.split(instance_dir)[1]
+    instance_filename = os.path.splitext(tail)[0]
+    exp_path = os.path.join(raytune_dir, exp_name, str(n2v_dim), instance_filename)
+    
+    # Load best config for this instance
+    print(f"\nLoading results from {exp_path} ...")
+    restored_tuner = tune.Tuner.restore(path=exp_path,
+                                        trainable=node2vec_tune)
+    results = restored_tuner.get_results()
+    best_config = results.get_best_result(metric="loss", mode="min").config
+    
+    best_config['n2v_verbose'] = 1
+    best_config['n2v_raytune'] = False
+    best_config['n2v_dir'] = node2vec_dir
+    best_config['n2v_filename'] = f'{instance_filename}.pt'
+
+    node2vec_tune(best_config)
+
+
