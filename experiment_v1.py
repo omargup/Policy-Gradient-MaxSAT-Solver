@@ -82,6 +82,7 @@ def hyper_search(instance_dir,
                                 save_path=node2vec_dir,
                                 file_name=node2vec_filename,
                                 num_workers=preconf['n2v_workers'],
+                                raytune=False,
                                 verbose=preconf['n2v_verbose'])
 
 
