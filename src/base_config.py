@@ -154,6 +154,10 @@ def get_config(new_config=None):
     config['checkpoint_dir'] = os.path.join(config['save_dir'], config['checkpoint_dir'])
     os.makedirs(config['checkpoint_dir'], exist_ok=True)
     
+    # RayTune or Tensorboard
+    if config["raytune"]:
+        config["tensorboard_on"] = False
+        config["extra_logging"] = False
     
     # Conext embedding size
     if config["dec_context_initializer"] == "EmptyContext":
