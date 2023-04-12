@@ -314,8 +314,12 @@ def train(formula,
         active_search: dic. 
     """
     if raytune:
+        if eval_interval != log_interval:
+            raise ValueError(f'If raytune is set to True, then eval_interval must be equeal with log_interval.')
         report_dict = {}
         verbose = 0
+        writer = None
+        extra_logging = False
     
     if verbose == 0:
         progress_bar = False
@@ -350,6 +354,8 @@ def train(formula,
                      'total_samples': 0,
                      'trainable params': trainable_params}
     
+    
+    # TODO num_samples must be divisible by batch_size
     num_episodes = int(np.ceil(num_samples / batch_size))
     for episode in tqdm(range(1, num_episodes + 1), disable=not progress_bar, ascii=True):
 
@@ -363,7 +369,7 @@ def train(formula,
                              permute_vars=permute_vars,
                              permute_seed=permute_seed,
                              logit_clipping=logit_clipping,  # {None, int >= 1}
-                             logit_temp=1)  # {None, float >= 1}  
+                             logit_temp=None)  # {None, float >= 1}  
         
         policy_network.eval()
         with torch.no_grad():
@@ -382,7 +388,7 @@ def train(formula,
                                         permute_vars=permute_vars,
                                         permute_seed=permute_seed,
                                         logit_clipping=logit_clipping,
-                                        logit_temp=logit_temp,
+                                        logit_temp=None,
                                         num_sat=num_sat).detach()
 
         policy_network.train()
@@ -441,15 +447,20 @@ def train(formula,
             if verbose > 0:
                 print(f'\nEpisode: {episode}, samples: {current_samples}/{num_samples}, num_sat: {num_sat_mean}')
                 print('\tpg_loss: ({} - {}) * {} + ({} * {}) = {}'.format(num_sat_mean,
-                                                                            baseline_val.item(),
-                                                                            log_prob_mean,
-                                                                            beta_entropy,
-                                                                            H_mean,
-                                                                            pg_loss.item()))
+                                                                          baseline_val.item(),
+                                                                          log_prob_mean,
+                                                                          beta_entropy,
+                                                                          H_mean,
+                                                                          pg_loss.item()))
             
             if verbose == 2:
                 print(f'logits: \n{buffer.action_logits}')
                 print(f'probs: \n{buffer.action_probs}')
+            
+            if raytune:
+                report_dict['num_sat'] = num_sat_mean
+                report_dict['loss'] = (num_sat_mean - baseline_val.item()) * log_prob_mean + (beta_entropy * H_mean)
+
 
             if writer is not None:
                 writer.add_scalar('num_sat', num_sat_mean, current_samples, new_style=True)
@@ -480,7 +491,7 @@ def train(formula,
             policy_network.eval()
             with torch.no_grad():
                 
-                for strat in eval_strategies:
+                for strat, T in eval_strategies:
                     if (strat < 0) or (type(strat) != int):
                         raise ValueError(f'Values in `eval_strategy` must be 0 if greedy or an integer greater or equal than 1 if sampled, got {strat}.')
                     buffer = run_episode(num_variables = num_variables,
@@ -491,7 +502,7 @@ def train(formula,
                                          permute_vars = permute_vars,
                                          permute_seed = permute_seed,
                                          logit_clipping=logit_clipping,  # {None, int >= 1}
-                                         logit_temp=logit_temp)  # {None, float >= 1}  )
+                                         logit_temp=T)  # {None, float >= 1}  )
             
                     # Compute num of sat clauses
                     num_sat = utils.num_sat_clauses_tensor(formula, buffer.action.detach()).detach()
@@ -503,7 +514,7 @@ def train(formula,
                         if verbose > 0:
                             print(f'\tGreedy: {number_of_sat}.')
                         if raytune:
-                            report_dict['num_sat_greedy'] = number_of_sat
+                            report_dict[f'num_sat_greedy_{str(T)}'] = number_of_sat
                         
                     
                     else:
@@ -511,14 +522,14 @@ def train(formula,
                         if verbose > 0:
                             print(f'\tBest of {strat} samples: {number_of_sat}.')
                         if raytune:
-                            report_dict[f'num_sat_sample_{str(strat)}'] = number_of_sat
+                            report_dict[f'num_sat_sample_{str(strat)}_{str(T)}'] = number_of_sat
                     
                     # Keep tracking the active search solution
                     if number_of_sat > active_search['num_sat']:
                         active_search['num_sat'] = number_of_sat
                         active_search['episode'] = episode
                         active_search['samples'] = current_samples
-                        active_search['strategy'] = f"{'greedy' if strat == 0 else 'sampled'}{'' if strat == 0 else '-'+str(strat)}"
+                        active_search['strategy'] = f"{'greedy' if strat == 0 else 'sampled'}{'' if strat == 0 else '-'+str(strat)}{'-'+str(T)}"
 
                         if strat == 0:
                             active_search['sol'] = buffer.action.detach().tolist()
@@ -526,7 +537,7 @@ def train(formula,
                             idx = num_sat.argmax().item()
                             active_search['sol'] = buffer.action[idx].detach().tolist() 
                         
-                        torch.save(policy_network.state_dict(), os.path.join(checkpoint_dir, "best.pt"))   
+                        #torch.save(policy_network.state_dict(), os.path.join(checkpoint_dir, "best.pt"))   
 
                     if writer is not None:
                         writer.add_scalar(f"eval/{'greedy' if strat == 0 else 'sampled'}{'' if strat == 0 else '-'+str(strat)}",
@@ -552,22 +563,23 @@ def train(formula,
             active_search['total_episodes'] = episode
             with open(os.path.join(save_dir, "solution.json"), 'w') as f:
                 json.dump(active_search, f, indent=4)
-            
-            torch.save(policy_network.state_dict(), os.path.join(checkpoint_dir, "last.pt")) 
-            
-            if raytune:
-                # episode, samples, num_sat_greedy, num_sat_sample_k
-                report_dict['episode'] = episode
-                report_dict['samples'] = current_samples        
-                session.report(report_dict)#, checkpoint=checkpoint)
-
-            policy_network.train()
 
             if verbose > 0:
                 print(f"\tActive search: {active_search['num_sat']}.")
                 print('-------------------------------------------------\n')
+            
             if writer is not None:
                 writer.add_scalar('active_search', active_search['num_sat'], current_samples, new_style=True)
+            
+            if raytune:                
+                torch.save((policy_network.state_dict(), optimizer.state_dict()), os.path.join(checkpoint_dir, "checkpoint.pt"))
+                checkpoint = Checkpoint.from_directory(checkpoint_dir)
+                # episode, samples, loss, num_sat, num_sat_greedy, num_sat_sample_k
+                report_dict['episode'] = episode
+                report_dict['samples'] = current_samples        
+                session.report(report_dict, checkpoint=checkpoint)
+
+            policy_network.train()
 
     
         if (current_samples == num_samples):
