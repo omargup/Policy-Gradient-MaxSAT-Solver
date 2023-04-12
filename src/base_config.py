@@ -142,16 +142,17 @@ def get_config(new_config=None):
 
     # Set output directory
     if config["raytune"]:
-        config['save_dir'] = config['output_dir']
-        os.makedirs(config['save_dir'], exist_ok=True)
+        config['save_dir'] = ''  # config['output_dir']
+        #os.makedirs(config['save_dir'], exist_ok=True)
     else:
         config['save_dir'] = os.path.join(config['output_dir'], config['exp_name'], f"{config['run_name']}-{config['run_id']}")
         os.makedirs(config['save_dir'], exist_ok=True)
     
-    config['log_dir'] = os.path.join(config['save_dir'], config['log_dir'])
-    os.makedirs(config['log_dir'], exist_ok=True)
+        config['log_dir'] = os.path.join(config['save_dir'], config['log_dir'])
+        os.makedirs(config['log_dir'], exist_ok=True)
     
-    config['checkpoint_dir'] = os.path.join(config['save_dir'], config['checkpoint_dir'])
+        config['checkpoint_dir'] = os.path.join(config['save_dir'], config['checkpoint_dir'])
+    
     os.makedirs(config['checkpoint_dir'], exist_ok=True)
     
     # RayTune or Tensorboard
