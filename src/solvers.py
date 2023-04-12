@@ -19,7 +19,7 @@ from src.base_config import get_config
 from ray import air, tune
 from ray.tune.schedulers import ASHAScheduler
 
-# from ray.air import session
+from ray.air import session
 from PyMiniSolvers import minisolvers
 
 import os
@@ -47,7 +47,7 @@ def minisat_solver(n, formula):
         assignment = list(S.get_model())
         #is_sat, num_sat, eval_formula = utils.num_sat_clauses(formula, assignment)
     return assignment, is_sat
-        
+
 
 def pg_solver(config):
     # Configuration parameters
@@ -56,9 +56,14 @@ def pg_solver(config):
         print("\n")
         pp.pprint(config)
     
+    if config["raytune"]:
+        config['tensorboard_on'] = False
+        config['extra_logging'] = False
+    
     # Saving configuration
-    with open(os.path.join(config['save_dir'], "config.json"), 'w') as f:
-        json.dump(config, f, indent=True)
+    if not config["raytune"]:
+        with open(os.path.join(config['save_dir'], "config.json"), 'w') as f:
+            json.dump(config, f, indent=True)
 
     # Verbose
     if (config['verbose'] < 0) or (config['verbose'] > 2) or (type(config['verbose']) != int): 
@@ -100,6 +105,7 @@ def pg_solver(config):
         node2vec_file = os.path.join(node2vec_dir, node2vec_filename + ".pt")
 
         # Tries to load pretrained embeddings
+        # If raytune is set to True, pretrained embeddings must exist
         n2v_emb = None
         if config['n2v_pretrained']:
             if os.path.isfile(node2vec_file):
@@ -107,11 +113,13 @@ def pg_solver(config):
                 if config['verbose'] > 0:
                     print(f"\nNode2Vec embeddings of size {config['n2v_dim']} loaded from: {node2vec_file}.")
             else:
+                if config["raytune"]:
+                    raise Exception(f"No node2vec emb of size {config['n2v_dim']} was found at {node2vec_file}.")
                 if config['verbose'] > 0:
                     print(f"\nNo Node2Vec embeddings of size {config['n2v_dim']} have been created yet.")
-        
-        # Runs node2vec algorithm if not pretrained or not found
-        if n2v_emb is None:
+
+        # Runs node2vec algorithm if not pretrained or not found (raytune must be False)
+        if (n2v_emb is None) and not config["raytune"]:
             n2v_emb = utils.node2vec(dimacs_path=config['data_dir'],
                                      device=device,
                                      embedding_dim=config['n2v_dim'],
@@ -204,15 +212,15 @@ def pg_solver(config):
     
     optimizer = optim.Adam(policy_network.parameters(), lr=config['lr'], maximize=True)
 
-#     if config['raytune']:
-#         loaded_checkpoint = session.get_checkpoint()
-#         if loaded_checkpoint:
-#             print("Loading from checkpoint.")
-#             with loaded_checkpoint.as_directory() as loaded_checkpoint_dir:
-#                 path = os.path.join(loaded_checkpoint_dir, "checkpoint.pt")
-#                 model_state, optimizer_state = torch.load(path)
-#                 policy_network.load_state_dict(model_state)
-#                 optimizer.load_state_dict(optimizer_state)
+    if config["raytune"]:
+        loaded_checkpoint = session.get_checkpoint()
+        if loaded_checkpoint:
+            print("\nLoading from checkpoint...")
+            with loaded_checkpoint.as_directory() as loaded_checkpoint_dir:
+                path = os.path.join(loaded_checkpoint_dir, "checkpoint.pt")
+                model_state, optimizer_state = torch.load(path)
+                policy_network.load_state_dict(model_state)
+                optimizer.load_state_dict(optimizer_state)
            
     if config['baseline'] is None:
         baseline = None
