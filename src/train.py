@@ -572,12 +572,13 @@ def train(formula,
                 writer.add_scalar('active_search', active_search['num_sat'], current_samples, new_style=True)
             
             if raytune:                
-                torch.save((policy_network.state_dict(), optimizer.state_dict()), os.path.join(checkpoint_dir, "checkpoint.pt"))
-                checkpoint = Checkpoint.from_directory(checkpoint_dir)
+                #torch.save((policy_network.state_dict(), optimizer.state_dict()), os.path.join(checkpoint_dir, "checkpoint.pt"))
+                #checkpoint = Checkpoint.from_directory(checkpoint_dir)
                 # episode, samples, loss, num_sat, num_sat_greedy, num_sat_sample_k
                 report_dict['episode'] = episode
                 report_dict['samples'] = current_samples        
-                session.report(report_dict, checkpoint=checkpoint)
+                #session.report(report_dict, checkpoint=checkpoint)
+                session.report(report_dict)
 
             policy_network.train()
 

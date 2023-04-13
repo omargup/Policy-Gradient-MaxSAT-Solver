@@ -212,15 +212,15 @@ def pg_solver(config):
     
     optimizer = optim.Adam(policy_network.parameters(), lr=config['lr'], maximize=True)
 
-    if config["raytune"]:
-        loaded_checkpoint = session.get_checkpoint()
-        if loaded_checkpoint:
-            print("\nLoading from checkpoint...")
-            with loaded_checkpoint.as_directory() as loaded_checkpoint_dir:
-                path = os.path.join(loaded_checkpoint_dir, "checkpoint.pt")
-                model_state, optimizer_state = torch.load(path)
-                policy_network.load_state_dict(model_state)
-                optimizer.load_state_dict(optimizer_state)
+    # if config["raytune"]:
+    #     loaded_checkpoint = session.get_checkpoint()
+    #     if loaded_checkpoint:
+    #         print("\nLoading from checkpoint...")
+    #         with loaded_checkpoint.as_directory() as loaded_checkpoint_dir:
+    #             path = os.path.join(loaded_checkpoint_dir, "checkpoint.pt")
+    #             model_state, optimizer_state = torch.load(path)
+    #             policy_network.load_state_dict(model_state)
+    #             optimizer.load_state_dict(optimizer_state)
            
     if config['baseline'] is None:
         baseline = None
