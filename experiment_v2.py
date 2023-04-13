@@ -303,10 +303,10 @@ def pg_hypersearch(instance_dir,
     run_config = air.RunConfig(local_dir=raytune_dir,
                                name=exp_name,
                                progress_reporter=reporter,  # None
-                               log_to_file=True,
-                               checkpoint_config=air.CheckpointConfig(checkpoint_score_attribute="num_sat",
-                                                                      checkpoint_score_order="max",
-                                                                      num_to_keep=1))
+                               log_to_file=True)#,
+                               #checkpoint_config=air.CheckpointConfig(checkpoint_score_attribute="num_sat",
+                               #                                       checkpoint_score_order="max",
+                               #                                       num_to_keep=1))
 
     # We have 1 GPU and 12 cpus, this will run 2 concurrent trials at a time.
     trainable_with_cpu_gpu = tune.with_resources(pg_solver, resources_per_trial)
@@ -325,7 +325,7 @@ def pg_hypersearch(instance_dir,
 
 #lista = [20, 30, 40, 50, 60, 70, 80, 90, 100]
 #for i in lista:
-num_vars = 20
+num_vars = 30
 data_path = 'data/rand'
 raytune_dir="hypersearch"
 
