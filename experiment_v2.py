@@ -223,7 +223,7 @@ def pg_hypersearch(instance_dir,
         # Decoder
         decoder = trial.suggest_categorical("decoder", ["Transformer", "GRU", "LSTM"])
         if decoder == "Transformer":
-            trial.suggest_categorical("num_heads", [1, 2, 4, 8])
+            trial.suggest_categorical("num_heads", [1, 2, 4])
             trial.suggest_categorical("dense_size", [64, 128, 256, 512, 768, 1024])
         else:  # rnn decoder
             trial.suggest_categorical("hidden_size", [64, 128, 256, 512, 768, 1024])
@@ -308,7 +308,7 @@ def pg_hypersearch(instance_dir,
                                #                                       checkpoint_score_order="max",
                                #                                       num_to_keep=1))
 
-    # We have 1 GPU and 12 cpus, this will run 2 concurrent trials at a time.
+    # We have 1 GPU and 8 cpus, this will run 2 concurrent trials at a time.
     trainable_with_cpu_gpu = tune.with_resources(pg_solver, resources_per_trial)
     tuner = tune.Tuner(trainable_with_cpu_gpu,
                         tune_config=tune_config,
@@ -325,7 +325,7 @@ def pg_hypersearch(instance_dir,
 
 #lista = [20, 30, 40, 50, 60, 70, 80, 90, 100]
 #for i in lista:
-num_vars = 30
+num_vars = 50
 data_path = 'data/rand'
 raytune_dir="hypersearch"
 
@@ -343,7 +343,7 @@ pg_raytune_trials=30
 #pg_grace_period=((2*n)+m)*8
 #pg_num_samples=((2*n)+m)*128
 #pg_scheduler_max_t=((2*n)+m)*64
-pg_resources_per_trial={"cpu": 6, "gpu": 0.5}
+pg_resources_per_trial={"cpu": 4, "gpu": 0.5}
 pg_exp_name='pg_solver'
 
 output_dir = 'outputs'
