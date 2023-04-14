@@ -308,7 +308,7 @@ def pg_hypersearch(instance_dir,
                                #                                       checkpoint_score_order="max",
                                #                                       num_to_keep=1))
 
-    # We have 1 GPU and 12 cpus, this will run 2 concurrent trials at a time.
+    # We have 1 GPU and 8 cpus, this will run 2 concurrent trials at a time.
     trainable_with_cpu_gpu = tune.with_resources(pg_solver, resources_per_trial)
     tuner = tune.Tuner(trainable_with_cpu_gpu,
                         tune_config=tune_config,
