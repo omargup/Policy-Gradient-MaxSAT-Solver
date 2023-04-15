@@ -16,6 +16,7 @@ import time
 
 #####################################################
 # Experiment v2                                     #
+# Testing max transformer size fits in memory       #
 #####################################################
 
 def paths_for_instances(num_vars=20, data_path='data/rand'):
@@ -189,7 +190,7 @@ def pg_hypersearch(instance_dir,
         
         # Search space
         # Input and embeddings
-        node2vec = trial.suggest_categorical("node2vec", [True, False])
+        node2vec = trial.suggest_categorical("node2vec", [True])
         if not node2vec:
             config["dec_var_initializer"] = "BasicVar"
             dec_context_initializer = config["dec_context_initializer"] = "EmptyContext"
@@ -210,26 +211,26 @@ def pg_hypersearch(instance_dir,
             config["n2v_verbose"] = n2v_config['n2v_verbose']
             
             config["dec_var_initializer"] = "Node2VecVar"
-            dec_context_initializer = trial.suggest_categorical("dec_context_initializer", ["EmptyContext", "Node2VecContext"])
+            dec_context_initializer = trial.suggest_categorical("dec_context_initializer", ["Node2VecContext"])
             
-        trial.suggest_categorical("var_emb_size", [64, 128, 256])
-        trial.suggest_categorical("assignment_emb_size", [64, 128, 256])
+        trial.suggest_categorical("var_emb_size", [256])
+        trial.suggest_categorical("assignment_emb_size", [256])
         if dec_context_initializer == "Node2VecContext":
-            trial.suggest_categorical("context_emb_size", [32, 64, 128, 256])
+            trial.suggest_categorical("context_emb_size", [256])
         else: # EmptyContext
             config["context_emb_size"] = 0
-        trial.suggest_categorical("model_dim", [64, 128, 256, 512])
+        trial.suggest_categorical("model_dim", [512])
             
         # Decoder
-        decoder = trial.suggest_categorical("decoder", ["Transformer", "GRU", "LSTM"])
+        decoder = trial.suggest_categorical("decoder", ["Transformer"])
         if decoder == "Transformer":
-            trial.suggest_categorical("num_heads", [1, 2, 4])
-            trial.suggest_categorical("dense_size", [64, 128, 256, 512])
+            trial.suggest_categorical("num_heads", [4])
+            trial.suggest_categorical("dense_size", [512])
         else:  # rnn decoder
             trial.suggest_categorical("hidden_size", [64, 128, 256, 512, 768, 1024])
             trial.suggest_categorical("trainable_state", [True, False])
-        num_layers = trial.suggest_int("num_layers", 1, 3)
-        trial.suggest_categorical("output_size", [1, 2])
+        num_layers = trial.suggest_categorical("num_layers", [3])
+        trial.suggest_categorical("output_size", [2])
         dropout_flag = ((decoder == "GRU") and (num_layers > 1)) or ((decoder == "LSTM") and (num_layers > 1))
         if (decoder == "Transformer") or dropout_flag:
             trial.suggest_float("dropout", 0, 0.3, step=0.05)
@@ -246,9 +247,9 @@ def pg_hypersearch(instance_dir,
         trial.suggest_float("lr", 1e-6, 1e-4, log=True)  # 0.00015   0.00001
         
         # Baseline
-        baseline = trial.suggest_categorical("baseline", [None, "greedy", "sample", "ema"])
+        baseline = trial.suggest_categorical("baseline", ["sample"])
         if baseline == "sample":
-            trial.suggest_categorical("k_samples", [2, 4, 8, 16, 32])  # int, k >= 1
+            trial.suggest_categorical("k_samples", [32])  # int, k >= 1
         elif baseline == "ema":
             trial.suggest_float("alpha_ema", 0.95, 0.99, step=0.01)  # 0 <= alpha <= 1
     
@@ -325,7 +326,7 @@ def pg_hypersearch(instance_dir,
 
 #lista = [20, 30, 40, 50, 60, 70, 80, 90, 100]
 #for i in lista:
-num_vars = 40
+num_vars = 50
 data_path = 'data/rand'
 raytune_dir="hypersearch"
 
@@ -339,18 +340,18 @@ n2v_exp_name='node2vec'
 n2v_dir = 'node2vec_emb'
 
 pg_batch_size=32
-pg_raytune_trials=30
+pg_raytune_trials=3
 #pg_grace_period=((2*n)+m)*8
 #pg_num_samples=((2*n)+m)*128
 #pg_scheduler_max_t=((2*n)+m)*64
-pg_resources_per_trial={"cpu": 12, "gpu": 1}
+pg_resources_per_trial={"cpu":12, "gpu": 1}
 pg_exp_name='pg_solver'
 
 output_dir = 'outputs'
 log_dir = 'logs'
 
-paths = paths_for_instances(num_vars, data_path)
-#paths = ['/home/omargp/Documents/Code/Learning-SAT-Solvers/data/rand/0020/0092/rand_n=0020_k=03_m=0092_i=01.cnf']
+#paths = paths_for_instances(num_vars, data_path)
+paths = ['/home/omargp/Documents/Code/Learning-SAT-Solvers/data/rand/0040/0184/rand_n=0040_k=03_m=0184_i=01.cnf']
 
 
 #####################################################
@@ -438,8 +439,8 @@ for i, instance_dir in enumerate(paths):
                    exp_name=exp_path,
                    raytune_trials=pg_raytune_trials,
                    raytune_dir=raytune_dir,
-                   grace_period=((2*n)+m)*8,
-                   scheduler_max_t=((2*n)+m)*64,
+                   grace_period=((2*n)+m)*4,
+                   scheduler_max_t=((2*n)+m)*8,
                    resources_per_trial=pg_resources_per_trial)
     
    
