@@ -224,7 +224,7 @@ def pg_hypersearch(instance_dir,
         decoder = trial.suggest_categorical("decoder", ["Transformer", "GRU", "LSTM"])
         if decoder == "Transformer":
             trial.suggest_categorical("num_heads", [1, 2, 4])
-            trial.suggest_categorical("dense_size", [64, 128, 256, 512, 768, 1024])
+            trial.suggest_categorical("dense_size", [64, 128, 256, 512])
         else:  # rnn decoder
             trial.suggest_categorical("hidden_size", [64, 128, 256, 512, 768, 1024])
             trial.suggest_categorical("trainable_state", [True, False])
@@ -325,7 +325,7 @@ def pg_hypersearch(instance_dir,
 
 #lista = [20, 30, 40, 50, 60, 70, 80, 90, 100]
 #for i in lista:
-num_vars = 50
+num_vars = 40
 data_path = 'data/rand'
 raytune_dir="hypersearch"
 
@@ -343,7 +343,7 @@ pg_raytune_trials=30
 #pg_grace_period=((2*n)+m)*8
 #pg_num_samples=((2*n)+m)*128
 #pg_scheduler_max_t=((2*n)+m)*64
-pg_resources_per_trial={"cpu": 4, "gpu": 0.5}
+pg_resources_per_trial={"cpu":12, "gpu": 1}
 pg_exp_name='pg_solver'
 
 output_dir = 'outputs'
@@ -438,7 +438,7 @@ for i, instance_dir in enumerate(paths):
                    exp_name=exp_path,
                    raytune_trials=pg_raytune_trials,
                    raytune_dir=raytune_dir,
-                   grace_period=((2*n)+m)*16,
+                   grace_period=((2*n)+m)*8,
                    scheduler_max_t=((2*n)+m)*64,
                    resources_per_trial=pg_resources_per_trial)
     
