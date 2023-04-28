@@ -26,6 +26,8 @@ import os
 import json
 import pprint as pp
 
+from GPUtil import showUtilization as gpu_usage
+
 
 def random_solver(n, formula):
     # Create a random assignment
@@ -89,6 +91,12 @@ def pg_solver(config):
     if config['verbose'] > 0:
         print(f"\nFormula loaded from: {config['data_dir']}.")
 
+    # ###########################################################################
+    # print("\nBefore load node2vec:", torch.cuda.memory_allocated(device))
+    # print("\tAllocated:", round(torch.cuda.memory_allocated(device)/1024**3,1), "GB")
+    # print("\tCached:", round(torch.cuda.memory_reserved(device)/1024**3,1), "GB") 
+    # gpu_usage()
+    # ###########################################################################
     # Node2vec embeddings
     if config['node2vec'] == False:
         n2v_emb = None
@@ -141,7 +149,12 @@ def pg_solver(config):
     else:
         raise ValueError(f"{config['node2vec']} is not a valid value, try with True or False.")
     
-
+    # ###########################################################################
+    # print("\n1. After load node2vec:", torch.cuda.memory_allocated(device), 'B')
+    # print("\tAllocated:", round(torch.cuda.memory_allocated(device)/1024**3,1), "GB")
+    # print("\tCached:", round(torch.cuda.memory_reserved(device)/1024**3,1), "GB")
+    # gpu_usage()     
+    # ###########################################################################
     # Initializers
     # Var Initializers
     if config["dec_var_initializer"] == "BasicVar":
@@ -222,8 +235,8 @@ def pg_solver(config):
     #             policy_network.load_state_dict(model_state)
     #             optimizer.load_state_dict(optimizer_state)
            
-    if config['baseline'] is None:
-        baseline = None
+    if config['baseline'] == 'zero':
+        baseline = ZeroBaseline()
     elif config['baseline'] == 'ema':
         baseline = EMABaseline(num_clauses=m, alpha=config['alpha_ema'])
     elif config['baseline'] == 'greedy':
@@ -235,6 +248,16 @@ def pg_solver(config):
     else:
         raise ValueError(f'{config["baseline"]} is not a valid baseline.')
     
+    # ###########################################################################
+    # # Number of parameters
+    # print("\t Params:", sum(p.numel() for p in policy_network.parameters()))
+    # print("\t Trainable params:", sum(p.numel() for p in policy_network.parameters() if p.requires_grad))
+    
+    # print("2. After build the full model", torch.cuda.memory_allocated(device))
+    # print("\tAllocated:", round(torch.cuda.memory_allocated(device)/1024**3,1), "GB")
+    # print("\tCached:", round(torch.cuda.memory_reserved(device)/1024**3,1), "GB")
+    # gpu_usage() 
+    # ###########################################################################
     active_search = train(formula=formula,
                           num_variables=num_variables,
                           policy_network=policy_network,

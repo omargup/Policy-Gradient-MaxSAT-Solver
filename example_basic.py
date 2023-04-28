@@ -56,7 +56,7 @@ config = {
     "lr": 0.00015 ,  # (float). e.g.: 0.00015. or 0.00001
 
     # Baseline
-    "baseline": 'sample',  # {None, 'greedy', 'sample'. 'ema'}
+    "baseline": 'sample',  # {'zero', 'greedy', 'sample'. 'ema'}
     "alpha_ema": 0.99,  # (float). 0 <= alpha <= 1. EMA decay.
     "k_samples": 10,  # (int). k >= 1. Number of samples used to obtain the sample baseline value.
 

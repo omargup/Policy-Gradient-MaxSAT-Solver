@@ -19,6 +19,8 @@ import time
 from tqdm import tqdm
 import json
 
+from GPUtil import showUtilization as gpu_usage
+
 
 
 # TODO: save only sum, not each value.
@@ -341,6 +343,12 @@ def train(formula,
 
     # Put model in train mode
     policy_network.to(device)
+    # ###########################################################################
+    # print("3. After model to device:", torch.cuda.memory_allocated(device))
+    # print("\tAllocated:", round(torch.cuda.memory_allocated(device)/1024**3, 1), "GB")
+    # print("\tCached:", round(torch.cuda.memory_reserved(device)/1024**3, 1), "GB")
+    # gpu_usage() 
+    # ###########################################################################
     policy_network.train()
     optimizer.zero_grad()
 
@@ -361,6 +369,9 @@ def train(formula,
 
         current_samples = episode * batch_size
         
+        # ###########################################################################
+        # a = torch.cuda.memory_allocated(device)
+        # ###########################################################################
         buffer = run_episode(num_variables=num_variables,
                              policy_network=policy_network,
                              device=device,
@@ -371,6 +382,16 @@ def train(formula,
                              logit_clipping=logit_clipping,  # {None, int >= 1}
                              logit_temp=None)  # {None, float >= 1}  
         
+        # ###########################################################################
+        # b = torch.cuda.memory_allocated(device)
+        # ###########################################################################
+        # ###########################################################################
+        # print("\n4. Mem consumen by forward pass:", round((b-a)/1024**3, 1), "GB")
+        # print("\tAfter run an episode (forward pass):", torch.cuda.memory_allocated(device))
+        # print("\tAllocated:", round(torch.cuda.memory_allocated(device)/1024**3, 1), "GB")
+        # print("\tCached:", round(torch.cuda.memory_reserved(device)/1024**3, 1), "GB")
+        # gpu_usage()  
+        # ###########################################################################
         policy_network.eval()
         with torch.no_grad():
             # Compute num of sat clauses
@@ -379,18 +400,22 @@ def train(formula,
             # num_sat: [batch_size]
 
             # Compute baseline
-            baseline_val = torch.tensor(0, dtype=float).detach().to(device)
-            if baseline is not None:
-                baseline_val = baseline(formula=formula,
-                                        num_variables=num_variables,
-                                        policy_network=policy_network,
-                                        device=device,
-                                        permute_vars=permute_vars,
-                                        permute_seed=permute_seed,
-                                        logit_clipping=logit_clipping,
-                                        logit_temp=None,
-                                        num_sat=num_sat).detach()
+            baseline_val = baseline(formula=formula,
+                                    num_variables=num_variables,
+                                    policy_network=policy_network,
+                                    device=device,
+                                    permute_vars=permute_vars,
+                                    permute_seed=permute_seed,
+                                    logit_clipping=logit_clipping,
+                                    logit_temp=None,
+                                    num_sat=num_sat).detach()
 
+            # ###########################################################################
+            # print("5. After baseline:", torch.cuda.memory_allocated(device))
+            # print("\tAllocated:", round(torch.cuda.memory_allocated(device)/1024**3,1), "GB")
+            # print("\tCached:", round(torch.cuda.memory_reserved(device)/1024**3,1), "GB")
+            # gpu_usage()  
+            # ###########################################################################
         policy_network.train()
 
         # Update entropy weight
@@ -430,13 +455,25 @@ def train(formula,
         # Gradient accumulation
         loss.backward()
 
+        # ###########################################################################
+        # print("6. After backward pass:", torch.cuda.memory_allocated(device))
+        # print("\tAllocated:", round(torch.cuda.memory_allocated(device)/1024**3,1), "GB")
+        # print("\tCached:", round(torch.cuda.memory_reserved(device)/1024**3,1), "GB")
+        # gpu_usage()  
+        # ###########################################################################
         # Perform optimization step after accumulating gradients
         if (episode % accumulation_episodes) == 0:
             if clip_grad is not None:
                 nn.utils.clip_grad_norm_(policy_network.parameters(), clip_grad) 
             optimizer.step()
+            # ###########################################################################
+            # print("7. After optimizer step:", torch.cuda.memory_allocated(device))
+            # print("\tAllocated:", round(torch.cuda.memory_allocated(device)/1024**3,1), "GB")
+            # print("\tCached:", round(torch.cuda.memory_reserved(device)/1024**3,1), "GB")
+            # gpu_usage()  
+            # ###########################################################################
             optimizer.zero_grad()
-        
+            
         # Logging
         if (episode % log_interval) == 0:
             num_sat_mean = num_sat.mean().item()
@@ -503,7 +540,13 @@ def train(formula,
                                          permute_seed = permute_seed,
                                          logit_clipping=logit_clipping,  # {None, int >= 1}
                                          logit_temp=T)  # {None, float >= 1}  )
-            
+                    # ###########################################################################
+                    # print(f"8. After eval {strat} {T}:", torch.cuda.memory_allocated(device))
+                    # print("\tAllocated:", round(torch.cuda.memory_allocated(device)/1024**3,1), "GB")
+                    # print("\tCached:", round(torch.cuda.memory_reserved(device)/1024**3,1), "GB")
+                    # gpu_usage()  
+                    # ###########################################################################
+                    
                     # Compute num of sat clauses
                     num_sat = utils.num_sat_clauses_tensor(formula, buffer.action.detach()).detach()
                     # ::num_sat:: [batch_size]
@@ -571,6 +614,13 @@ def train(formula,
             if writer is not None:
                 writer.add_scalar('active_search', active_search['num_sat'], current_samples, new_style=True)
             
+            # ###########################################################################
+            # print("-"*50)
+            # print(f"Max allocated", round(torch.cuda.max_memory_allocated(device)/1024**3, 1), "GB")
+            # print(f"Max reserved", round(torch.cuda.max_memory_reserved(device)/1024**3, 1), "GB")
+            # print("-"*50)
+            # torch.cuda.reset_peak_memory_stats(device=None)
+            # ###########################################################################
             if raytune:                
                 #torch.save((policy_network.state_dict(), optimizer.state_dict()), os.path.join(checkpoint_dir, "checkpoint.pt"))
                 #checkpoint = Checkpoint.from_directory(checkpoint_dir)
