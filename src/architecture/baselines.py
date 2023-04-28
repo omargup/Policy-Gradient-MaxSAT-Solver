@@ -61,6 +61,13 @@ class EMABaseline(Baseline):
         return self.b
 
 
+class ZeroBaseline(Baseline):
+    """Returns zero as a baseline"""
+    def __init__(self, *args, **kwargs):
+        super().__init__()
+
+    def forward(self, device, **kwargs):
+        return torch.tensor(0, dtype=float).detach().to(device)
 
 
 
