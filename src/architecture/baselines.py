@@ -17,20 +17,25 @@ class Baseline(nn.Module):
 class RolloutBaseline(Baseline):
     """Computes greedy rollout if 'num_rollouts' is -1 or sampled rollout
     if 'num_rollout' > 0."""
-    def __init__(self, num_rollouts=-1, *args, **kwargs):
+    def __init__(self, num_rollouts=-1, temperature=1, *args, **kwargs):
         super().__init__()
         if (type(num_rollouts) != int) or (num_rollouts < -1) or (num_rollouts == 0):
             raise ValueError(f"{num_rollouts} is not a valid number of rollouts, try with -1 for 'greedy' or 1, 2, 3, etc. for 'sample'.")
+        if temperature < 1:
+            raise ValueError(f"{temperature} is not a valid number for temperature, try with a flot greater than or equal with 1.")
+            
 
         if num_rollouts == -1:
             self.strategy = 'greedy'
             self.num_rollouts = 1
+            self.temperature = 1
         elif num_rollouts >= 1:
             self.strategy = 'sampled'
             self.num_rollouts = num_rollouts
+            self.temperature = temperature
 
     def forward(self, formula, num_variables, policy_network, device, 
-                permute_vars, permute_seed, logit_clipping, logit_temp, **kwargs):
+                permute_vars, permute_seed, logit_clipping, **kwargs):
 
         buffer = run_episode(num_variables,
                              policy_network,
@@ -40,7 +45,7 @@ class RolloutBaseline(Baseline):
                              permute_vars=permute_vars,
                              permute_seed=permute_seed,
                              logit_clipping=logit_clipping,
-                             logit_temp=logit_temp)
+                             logit_temp=self.temperature)
         
         mean_num_sat = utils.num_sat_clauses_tensor(formula, buffer.action.detach()).mean().detach()
         return mean_num_sat
