@@ -12,7 +12,7 @@ config = {
     "node2vec": True,  # (bool).
     "n2v_dir": os.path.abspath("n2v_emb"),  # (str).
     "n2v_dim": 64,  # (int).
-    "n2v_pretrained": True,  # {False, True}
+    "n2v_pretrained": False,  # {False, True}
     "n2v_walk_len": 10,  # (int).
     "n2v_context_size": 5,  # (int).
     "n2v_walks_per_node": 5,  # (int).
@@ -49,7 +49,7 @@ config = {
     # Training
     "num_samples": 15000,  # (int).
     "accumulation_episodes": 1,  # (int).
-    "batch_size": 20,  #10 # (int).
+    "batch_size": 32,  #10 # (int).
     "permute_vars": True,  # (bool).
     "permute_seed": None,  # (int). e.g.: 2147483647
     "clip_grad": 1.0,  # {None, float} e.g.:0.00015.
@@ -59,22 +59,23 @@ config = {
     "baseline": 'sample',  # {'zero', 'greedy', 'sample'. 'ema'}
     "alpha_ema": 0.99,  # (float). 0 <= alpha <= 1. EMA decay.
     "k_samples": 10,  # (int). k >= 1. Number of samples used to obtain the sample baseline value.
+    "sampling_temp": 1, # (float >= 1). Sampling temperature for sample baseline.
 
     # Exploration
     "logit_clipping": 5,  # {None, int >= 1}
-    "logit_temp": 2,  # {None, float >= 1}. Useful for improve exploration in evaluation.
+    #"logit_temp": 2,  # {None, float >= 1}. Useful for improve exploration in evaluation.
     "entropy_estimator": 'crude',  # (str). {'crude', 'smooth'}
     "beta_entropy": 0.03,  # (float). beta >= 0.
 
     # Misc
     "sat_stopping": True,  # (bool). Stop when num_sat is equal with the num of clauses.
-    "log_interval": 20,  # (int).
-    "eval_interval": 50,  # (int).
-    "eval_strategies": [0, 32],  # (list of ints). 0 for greedy search, k >= 1 for k samples.
+    "log_interval": 10,  # (int).
+    "eval_interval": 10,  # (int).
+    "eval_strategies": [(0, 1), (32, 2)],  # (search strategy, temperature).  0 for greedy search, k >= 1 for k samples.
     "tensorboard_on": True,  # (bool).
     "extra_logging": False,  # (bool). Log Trainable state's weights.
     "raytune": False,  # (bool).
-    "data_dir": os.path.abspath('data/rand/0020/0040/rand_n=0020_k=03_m=0040_i=01.cnf'),  # (str).
+    "data_dir": os.path.abspath('data/rand/0020/0092/rand_n=0020_k=03_m=0092_i=01.cnf'),  # (str).
     "verbose": 1,  # {0, 1, 2}. If raytune is True, then verbose is set to 0.
 
     "log_dir": 'logs',  # (str).

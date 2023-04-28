@@ -61,10 +61,11 @@ def get_config(new_config=None):
             "baseline": 'greedy',  # {'zero', 'greedy', 'sample'. 'ema'}
             "alpha_ema": 0.99,  # (float). 0 <= alpha <= 1. EMA decay.
             "k_samples": 10,  # (int). k >= 1. Number of samples used to obtain the sample baseline value.
+            "sampling_temp": 1, # (float >= 1). Sampling temperature for sample baseline.
             
             # Exploration
             "logit_clipping": None,  # {None, int >= 1}
-            "logit_temp": None,  # {None, float >= 1}. Useful for improve exploration in evaluation.
+            #"logit_temp": None,  # {None, float >= 1}. Useful for improve exploration in evaluation.
             "entropy_estimator": 'crude',  # (str). {'crude', 'smooth'}
             "beta_entropy": 0,  # (float). beta >= 0.
 
@@ -72,7 +73,7 @@ def get_config(new_config=None):
             "sat_stopping": True,  # (bool). Stop when num_sat is equal with the num of clauses.
             "log_interval": 100,  # (int).
             "eval_interval": 200,  # (int).
-            "eval_strategies": [0, 32],  # (list of ints). 0 for greedy search, k >= 1 for k samples.
+            "eval_strategies": [(0, 1), (32, 2)],  # (search strategy, temperature).  0 for greedy search, k >= 1 for k samples.
             "tensorboard_on": True,  # (bool).
             "extra_logging": False,  # (bool). Log Trainable state's weights.
             "raytune": False,  # (bool).
@@ -116,13 +117,15 @@ def get_config(new_config=None):
         #if not config["permute_vars"]: 
         #    del config["permute_seed"]
         
-        if (config["baseline"] is None) or (config["baseline"] == "greedy"):
+        if (config["baseline"] == 'zero') or (config["baseline"] == "greedy"):
            del config["alpha_ema"]
            del config["k_samples"]
+           del config["sampling_temp"]
         elif config["baseline"] == "sample":
            del config["alpha_ema"]
         else:  # "ema"
            del config["k_samples"]
+           del config["sampling_temp"]
 
     
     # Set default config
