@@ -246,7 +246,7 @@ def pg_solver(config):
     elif config['baseline'] == 'sample':
         if (type(config['k_samples']) != int) or (config['k_samples'] < 1):
             raise ValueError(f"`k_samples` must be an integer equeal or greater than 1 got {config['k_samples']} with type: {type(config['k_samples'])}.")
-        baseline = RolloutBaseline(num_rollouts=config['k_samples'])
+        baseline = RolloutBaseline(num_rollouts=config['k_samples'], temperature=config['sampling_temp'])
     else:
         raise ValueError(f'{config["baseline"]} is not a valid baseline.')
     
@@ -270,7 +270,7 @@ def pg_solver(config):
                           permute_seed = config['permute_seed'],
                           baseline = baseline,
                           logit_clipping=config['logit_clipping'],
-                          logit_temp=config['logit_temp'],
+                          #logit_temp=config['logit_temp'],
                           entropy_estimator=config['entropy_estimator'],
                           beta_entropy = config['beta_entropy'],
                           clip_grad = config['clip_grad'],

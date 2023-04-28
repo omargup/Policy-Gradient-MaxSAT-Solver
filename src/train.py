@@ -264,7 +264,7 @@ def train(formula,
           permute_seed=None,
           baseline=None,
           logit_clipping=None,  # {None, int >= 1}
-          logit_temp=None,  # {None, float >= 1}
+          #logit_temp=None,  # {None, float >= 1}
           entropy_estimator='crude',  # {'crude', 'smooth'}
           beta_entropy=0,  
           clip_grad=None,  # {None, float}
@@ -407,7 +407,6 @@ def train(formula,
                                     permute_vars=permute_vars,
                                     permute_seed=permute_seed,
                                     logit_clipping=logit_clipping,
-                                    logit_temp=None,
                                     num_sat=num_sat).detach()
 
             # ###########################################################################
@@ -531,6 +530,8 @@ def train(formula,
                 for strat, T in eval_strategies:
                     if (strat < 0) or (type(strat) != int):
                         raise ValueError(f'Values in `eval_strategy` must be 0 if greedy or an integer greater or equal than 1 if sampled, got {strat}.')
+                    if T < 1:
+                        raise ValueError(f"{T} is not a valid number for temperature, try with a flot greater than or equal with 1.")
                     buffer = run_episode(num_variables = num_variables,
                                          policy_network = policy_network,
                                          device = device,
