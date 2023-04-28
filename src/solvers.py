@@ -7,7 +7,7 @@ import src.train as train
 from src.architecture.embeddings import GeneralEmbedding
 from src.architecture.encoder_decoder import PolicyNetwork
 from src.architecture.decoders import RNNDec, TransformerDec
-from src.architecture.baselines import RolloutBaseline, EMABaseline
+from src.architecture.baselines import RolloutBaseline, EMABaseline, ZeroBaseline
 
 from src.initializers.var_initializer import BasicVar, Node2VecVar
 from src.initializers.context_initializer import EmptyContext, Node2VecContext
@@ -225,6 +225,8 @@ def pg_solver(config):
     
     optimizer = optim.Adam(policy_network.parameters(), lr=config['lr'], maximize=True)
 
+    #policy_network = torch.compile(model)
+    
     # if config["raytune"]:
     #     loaded_checkpoint = session.get_checkpoint()
     #     if loaded_checkpoint:
