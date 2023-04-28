@@ -633,7 +633,7 @@ def train(formula,
             policy_network.train()
 
     
-        if (current_samples == num_samples):
+        if (current_samples >= num_samples):
             criteria = 'Maximum number of episodes reached'
             break
  
