@@ -28,25 +28,38 @@ class Buffer():
     """
     Tracks episode's relevant information.
     """
-    def __init__(self, batch_size, num_variables, dec_output_size, device) -> None:
-        # Episode Buffer
-        self.action_logits = torch.empty(size=(batch_size, num_variables, dec_output_size)).to(device)
-        # buffer_action_logits: [batch_size, seq_len=num_variables, feature_size=1or2]
+    def __init__(self, batch_size, num_variables, dec_output_size, device, extra_logging) -> None:
         self.action_probs = torch.empty(size=(batch_size, num_variables, dec_output_size)).to(device)
         # buffer_action_probs: [batch_size, seq_len=num_variables, feature_size=1or2]
-        self.action = torch.empty(size=(batch_size, num_variables), dtype = torch.int64).to(device)
+        
+        self.action = torch.empty(size=(batch_size, num_variables), dtype = torch.uint8).to(device)
         # buffer_action: [batch_size, seq_len=num_variables]
-        self.action_log_prob = torch.empty(size=(batch_size, num_variables)).to(device)
-        # buffer_action_log_prob: [batch_size, seq_len=num_variables]
+        
+        self.action_log_prob_sum = torch.zeros(batch_size).to(device)
+        # buffer_action_log_prob_sum: [batch_size]
+        
+        self.extra_logging = extra_logging
+        if extra_logging:
+            self.action_logits = torch.empty(size=(batch_size, num_variables, dec_output_size)).to(device)
+            # buffer_action_logits: [batch_size, seq_len=num_variables, feature_size=1or2]
+        
+        #self.action_log_prob = torch.empty(size=(batch_size, num_variables)).to(device)
+        ## buffer_action_log_prob: [batch_size, seq_len=num_variables]
         #self.entropy = torch.empty(size=(batch_size, num_variables)).to(device)
         # buffer_entropy: [batch_size, seq_len=num_variables]
     
+    
     def update(self, idx, t, action_logits, action_probs, action, action_log_prob):
-        assert action.dtype == torch.int64, f'action in update Buffer. dtype: {action.dtype}, shape: {action.shape}.'
-        self.action_logits[idx, t] = action_logits.squeeze(1)
+        assert action.dtype == torch.uint8, f'action in update Buffer. dtype: {action.dtype}, shape: {action.shape}.'
+    
         self.action_probs[idx, t] = action_probs.squeeze(1)
         self.action[idx, t] = action.view(-1)
-        self.action_log_prob[idx, t] = action_log_prob.view(-1)
+        self.action_log_prob_sum = torch.add(self.action_log_prob_sum, action_log_prob.view(-1))
+        
+        if self.extra_logging:
+            self.action_logits[idx, t] = action_logits.squeeze(1)
+        
+        #self.action_log_prob[idx, t] = action_log_prob.view(-1)
         #self.entropy[idx, t] = entropy.view(-1)
 
 
@@ -57,8 +70,9 @@ def run_episode(num_variables,
                 batch_size=1,
                 permute_vars=False,
                 permute_seed=None,  # e.g.: 2147483647 
-                logit_clipping=None,  # {None, int >= 1}
-                logit_temp=None):  # {None, float >= 1}        
+                logit_clipping=None,  # (int >= 0)
+                logit_temp=None,  # (float >= 1) 
+                extra_logging=False):         
     """
     Runs an episode and returns an updated buffer.
     """
@@ -82,7 +96,7 @@ def run_episode(num_variables,
     dec_output_size = policy_network.decoder.output_size
     assert (dec_output_size == 1) or (dec_output_size == 2), f"In run_episode. Decoder's output shape[-1]: {dec_output_size}"
     
-    buffer = Buffer(batch_size, num_variables, dec_output_size, device)
+    buffer = Buffer(batch_size, num_variables, dec_output_size, device, extra_logging)
     batch_idx = [i for i in range(batch_size)]
 
     permutation = utils.vars_permutation(num_variables,
@@ -222,7 +236,7 @@ def run_episode(num_variables,
         #-------
 
         # Update buffer
-        buffer.update(batch_idx, var_idx, action_logits, action_probs, action.to(dtype=torch.int64), action_log_prob)
+        buffer.update(batch_idx, var_idx, action_logits, action_probs, action.to(dtype=torch.uint8), action_log_prob)
         
         #actions_logits.append(list(np.around(action_logits.detach().cpu().numpy().flatten(), 2)))
         #actions_softmax.append(list(np.around(F.softmax(action_logits.detach(), -1).numpy().flatten(), 2)))
@@ -251,6 +265,8 @@ def run_episode(num_variables,
     #print(f'actions: \n{buffer.action}')
     
     # return buffer.action  # self.buffer.action.detach().cpu().numpy()
+    #print(f'\naction_log_prob_sum = {buffer.action_log_prob_sum}')
+    #print(f'\naction_log_prob.sum = {buffer.action_log_prob.sum(dim=-1)}')
     return buffer 
 
 
@@ -380,7 +396,8 @@ def train(formula,
                              permute_vars=permute_vars,
                              permute_seed=permute_seed,
                              logit_clipping=logit_clipping,  # {None, int >= 1}
-                             logit_temp=None)  # {None, float >= 1}  
+                             logit_temp=None,  # {None, float >= 1} 
+                             extra_logging=extra_logging)   
         
         # ###########################################################################
         # b = torch.cuda.memory_allocated(device)
@@ -423,9 +440,12 @@ def train(formula,
 
         # Entropy
         if entropy_estimator == "crude":
-            log_prob_a = buffer.action_log_prob
+            H = - buffer.action_log_prob_sum
+            # H: [batch_size]
+            
+            #log_prob_a = buffer.action_log_prob
             # log_prob_a: [batch_size, seq_len=num_variables]
-            H = - log_prob_a.sum(dim=-1)
+            #H = - log_prob_a.sum(dim=-1)
             # H: [batch_size]
 
         elif entropy_estimator == "smooth":
@@ -442,8 +462,7 @@ def train(formula,
             raise ValueError(f"{entropy_estimator} is not a valid entropy estimator, try with 'crude' or'smooth'.")
 
         # Loss (mean over batch)
-        # buffer.action_log_prob: [batch_size, seq_len=num_variables]
-        log_prob = buffer.action_log_prob.sum(dim=-1)
+        log_prob = buffer.action_log_prob_sum
         # log_prob: [batch_size]
         #print("Devices:")
         #print(num_sat.get_device(), baseline_val.get_device(), log_prob.get_device(), H.get_device())
@@ -540,7 +559,8 @@ def train(formula,
                                          permute_vars = permute_vars,
                                          permute_seed = permute_seed,
                                          logit_clipping=logit_clipping,  # {None, int >= 1}
-                                         logit_temp=T)  # {None, float >= 1}  )
+                                         logit_temp=T,  # {None, float >= 1}
+                                         extra_logging=False)  
                     # ###########################################################################
                     # print(f"8. After eval {strat} {T}:", torch.cuda.memory_allocated(device))
                     # print("\tAllocated:", round(torch.cuda.memory_allocated(device)/1024**3,1), "GB")
