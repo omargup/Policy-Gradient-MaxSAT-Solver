@@ -22,8 +22,6 @@ import json
 from GPUtil import showUtilization as gpu_usage
 
 
-
-# TODO: save only sum, not each value.
 class Buffer():
     """
     Tracks episode's relevant information.
@@ -70,27 +68,26 @@ def run_episode(num_variables,
                 batch_size=1,
                 permute_vars=False,
                 permute_seed=None,  # e.g.: 2147483647 
-                logit_clipping=None,  # (int >= 0)
-                logit_temp=None,  # (float >= 1) 
+                logit_clipping=0,  # (int >= 0)
+                logit_temp=1,  # (float >= 1) 
                 extra_logging=False):         
     """
     Runs an episode and returns an updated buffer.
     """
-    if logit_clipping is not None:
-        if logit_clipping < 1:
-            raise ValueError(f"`logit_clipping` must be equal or greater than 1, got {logit_clipping}.")
+    if (logit_clipping < 0) or (type(logit_clipping) != int):
+        raise ValueError(f"`logit_clipping` must be an integer equal or greater than 0, got {logit_clipping}.")
+    elif logit_clipping > 0:
         C = logit_clipping
         logit_clipping = True
     else:
+        assert logit_clipping == 0, f"logit_clipping should be 0, got {logit_clipping}"
         logit_clipping = False
     
-    if logit_temp is not None:
-        if logit_temp < 1:
-            raise ValueError(f"`logit_temp` must be equal or greater than 1, got {logit_temp}.")
-        T = logit_temp
-        logit_temp = True
+    if (logit_temp < 1):
+        raise ValueError(f"`logit_temp` must be an integer equal or greater than 1, got {logit_temp}.")
     else:
-        logit_temp = False
+        T = logit_temp
+    
 
     dec_type = policy_network.decoder.decoder_type
     dec_output_size = policy_network.decoder.output_size
@@ -192,8 +189,7 @@ def run_episode(num_variables,
         # Promote exploration
         if logit_clipping:
             action_logits = C * torch.tanh(action_logits)
-        if logit_temp:
-            action_logits = action_logits / T
+        action_logits = action_logits / T
 
         # Prob distribution over actions
         if action_logits.shape[-1] == 1:
@@ -275,20 +271,20 @@ def train(formula,
           policy_network,
           optimizer,
           device,
+          baseline,
           batch_size=1,
           permute_vars=False,
           permute_seed=None,
-          baseline=None,
-          logit_clipping=None,  # {None, int >= 1}
-          #logit_temp=None,  # {None, float >= 1}
+          logit_clipping=0,  # (int >= 0)
+          #logit_temp=1,  # (float >= 1)
           entropy_estimator='crude',  # {'crude', 'smooth'}
           beta_entropy=0,  
-          clip_grad=None,  # {None, float}
+          clip_grad=0,  # (float >= 0)
           num_samples=15000,
           accumulation_episodes=1,
           log_interval=100,
           eval_interval=100,
-          eval_strategies=[0, 10], # 0 for greedy, i < 0 takes i samples and returns the best one.
+          eval_strategies=[(0, 1), (10, 2)],  # (search strategy, temperature). 0 for greedy search, k >= 1 for k samples.
           writer = None,  # Tensorboard writer
           extra_logging = False,
           raytune = False,
@@ -306,12 +302,12 @@ def train(formula,
         variables
         policy_network: nn.Module.
         optimizer: torch.optimizer
-        device: torch.device.  
+        device: torch.device.
+        baseline: nn.Module. 
         formula_emb:
         batch_size: int.
         permute_vars: bool, {True, False}.
         permute_seed: long,
-        baseline:
         entropy_weight:
         clip_grad:
         num_episodes
@@ -395,8 +391,8 @@ def train(formula,
                              batch_size=batch_size,
                              permute_vars=permute_vars,
                              permute_seed=permute_seed,
-                             logit_clipping=logit_clipping,  # {None, int >= 1}
-                             logit_temp=None,  # {None, float >= 1} 
+                             logit_clipping=logit_clipping,  # (int >= 0)
+                             logit_temp=1,  # (float >= 1) 
                              extra_logging=extra_logging)   
         
         # ###########################################################################
@@ -481,7 +477,7 @@ def train(formula,
         # ###########################################################################
         # Perform optimization step after accumulating gradients
         if (episode % accumulation_episodes) == 0:
-            if clip_grad is not None:
+            if clip_grad > 0:
                 nn.utils.clip_grad_norm_(policy_network.parameters(), clip_grad) 
             optimizer.step()
             # ###########################################################################
@@ -509,7 +505,8 @@ def train(formula,
                                                                           pg_loss.item()))
             
             if verbose == 2:
-                print(f'logits: \n{buffer.action_logits}')
+                if extra_logging:
+                    print(f'logits: \n{buffer.action_logits}')
                 print(f'probs: \n{buffer.action_probs}')
             
             if raytune:
@@ -558,8 +555,8 @@ def train(formula,
                                          batch_size = 1 if strat == 0 else strat,
                                          permute_vars = permute_vars,
                                          permute_seed = permute_seed,
-                                         logit_clipping=logit_clipping,  # {None, int >= 1}
-                                         logit_temp=T,  # {None, float >= 1}
+                                         logit_clipping=logit_clipping,  # (int >= 0)
+                                         logit_temp=T,  # (float >= 1)
                                          extra_logging=False)  
                     # ###########################################################################
                     # print(f"8. After eval {strat} {T}:", torch.cuda.memory_allocated(device))

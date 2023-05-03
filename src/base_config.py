@@ -54,7 +54,7 @@ def get_config(new_config=None):
             "batch_size": 10,  # (int).
             "permute_vars": True,  # (bool).
             "permute_seed": None,  # (int). e.g.: 2147483647
-            "clip_grad": 1,  # {None, float} e.g.:0.00015.
+            "clip_grad": 1,  # (float > 0) e.g.:0.00015.
             "lr": 0.00015,  # (float). e.g.: 0.00015.
 
             # Baseline
@@ -64,8 +64,8 @@ def get_config(new_config=None):
             "sampling_temp": 1, # (float >= 1). Sampling temperature for sample baseline.
             
             # Exploration
-            "logit_clipping": None,  # {None, int >= 1}
-            #"logit_temp": None,  # {None, float >= 1}. Useful for improve exploration in evaluation.
+            "logit_clipping": 0,  # (int >= 0)
+            #"logit_temp": 1,  # (float >= 1). Useful for improve exploration in evaluation.
             "entropy_estimator": 'crude',  # (str). {'crude', 'smooth'}
             "beta_entropy": 0,  # (float). beta >= 0.
 
@@ -73,7 +73,7 @@ def get_config(new_config=None):
             "sat_stopping": True,  # (bool). Stop when num_sat is equal with the num of clauses.
             "log_interval": 100,  # (int).
             "eval_interval": 200,  # (int).
-            "eval_strategies": [(0, 1), (32, 2)],  # (search strategy, temperature).  0 for greedy search, k >= 1 for k samples.
+            "eval_strategies": [(0, 1), (32, 2)],  # (search strategy, temperature). 0 for greedy search, k >= 1 for k samples.
             "tensorboard_on": True,  # (bool).
             "extra_logging": False,  # (bool). Log Trainable state's weights.
             "raytune": False,  # (bool).

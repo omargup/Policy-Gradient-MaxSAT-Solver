@@ -47,23 +47,23 @@ config = {
     "dense_size":128,  # (int). Number of units of the position-wise FFN in the Transformer decoder.
 
     # Training
-    "num_samples": 15000,  # (int).
+    "num_samples": 12800,  # (int).
     "accumulation_episodes": 1,  # (int).
     "batch_size": 32,  #10 # (int).
     "permute_vars": True,  # (bool).
     "permute_seed": None,  # (int). e.g.: 2147483647
-    "clip_grad": 1.0,  # {None, float} e.g.:0.00015.
+    "clip_grad": 1.0,  # (float > 0) e.g.:0.00015.
     "lr": 0.00015 ,  # (float). e.g.: 0.00015. or 0.00001
 
     # Baseline
     "baseline": 'sample',  # {'zero', 'greedy', 'sample'. 'ema'}
     "alpha_ema": 0.99,  # (float). 0 <= alpha <= 1. EMA decay.
-    "k_samples": 10,  # (int). k >= 1. Number of samples used to obtain the sample baseline value.
-    "sampling_temp": 1, # (float >= 1). Sampling temperature for sample baseline.
+    "k_samples": 8,  # (int). k >= 1. Number of samples used to obtain the sample baseline value.
+    "sampling_temp": 1.5, # (float >= 1). Sampling temperature for sample baseline.
 
     # Exploration
-    "logit_clipping": 5,  # {None, int >= 1}
-    #"logit_temp": 2,  # {None, float >= 1}. Useful for improve exploration in evaluation.
+    "logit_clipping": 5,  # (int >= 0)
+    #"logit_temp": 2,  # (float >= 1). Useful for improve exploration in evaluation.
     "entropy_estimator": 'crude',  # (str). {'crude', 'smooth'}
     "beta_entropy": 0.03,  # (float). beta >= 0.
 
