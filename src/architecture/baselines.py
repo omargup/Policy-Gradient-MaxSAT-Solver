@@ -45,7 +45,8 @@ class RolloutBaseline(Baseline):
                              permute_vars=permute_vars,
                              permute_seed=permute_seed,
                              logit_clipping=logit_clipping,
-                             logit_temp=self.temperature)
+                             logit_temp=self.temperature,
+                             extra_logging=False)
         
         mean_num_sat = utils.num_sat_clauses_tensor(formula, buffer.action.detach()).mean().detach()
         return mean_num_sat
