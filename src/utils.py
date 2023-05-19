@@ -27,27 +27,97 @@ def control_time(start_time: int, end_time: int):
     return elapsed_mins, elapsed_secs
 
 
-def vars_permutation(num_variables,
-                     device,
-                     batch_size = 1,
-                     permute_vars=False,
-                     permute_seed=None):  # e.g.: 2147483647
+class VarsPermutation:
     """
-    Returns a permutation of the variables' indices.
+    Random permutation of the variables.
     """
-    if permute_vars:
-        if permute_seed is not None:
-            gen = torch.Generator()
-            permutation = torch.cat([torch.randperm(num_variables, generator=gen.manual_seed(permute_seed)).unsqueeze(0) for _ in range(batch_size)], dim=0).permute(1,0)
+    def __init__(self, num_variables, random_batch=True):
+        self.num_variables = num_variables
+        self.random_batch = random_batch
+        
+    def permute(self, batch_size):
+        '''Returns a random permutation of the variables as a tensor with shape [num_variables, batch_size].
+        If random_batch is True, then each permutation inside the batch is different. else, all the permutations inside the batch are the same.
+        '''
+        if self.random_batch:
+            return torch.cat([torch.randperm(self.num_variables).unsqueeze(0) for _ in range(batch_size)], dim=0).permute(1,0)
         else:
-            permutation = torch.cat([torch.randperm(num_variables).unsqueeze(0) for _ in range(batch_size)], dim=0).permute(1,0)
-    else:
-        permutation = torch.cat([torch.tensor([i for i in range(num_variables)]).unsqueeze(0) for _ in range(batch_size)], dim=0).permute(1,0)
-        # ::permutation:: [num_variables, batch_size]; e.g.: [[0, 1, 2, 3, 4], [0, 1, 2, 3, 4]]
+            rand_perm = torch.randperm(self.num_variables)
+            return torch.cat([rand_perm.unsqueeze(0) for _ in range(batch_size)], dim=0).permute(1,0)
+            
+            
 
-    return permutation
+class VarsImportance:
+    """
+    Permutation of the variables based on the number of incidences in the formula.
+    """
+    def __init__(self, num_variables, formula):
+        # Initialize the incidence count of each variable to zero.
+        var_count = {}
+        for var in range(num_variables):
+            # +1 because DIMACS format starts indexing variables from 1.
+            var_count[var+1] = 0
+        
+        # Counts the number of times each variable appears in the formula.
+        for clause in formula:
+            for literal in clause:
+                var = abs(literal)
+                var_count[var] += 1
+        
+        # Sort the variables in decreasing order based on their values, breaking ties by choosing the variable with the larges index.
+        sorted_counts = sorted(var_count.items(), key=lambda x: (x[1], x[0]), reverse=True)
+        
+        # Return the sorted variables as a list. -1 because the variables are indexed from 0 to num_variables-1 in the code.
+        self.sorted_variables = [item[0]-1 for item in sorted_counts]
+        
+    def permute(self, batch_size):
+        '''Return a permutatino of the variables based on the number of incidences in the formula.
+        The ouput is a tensor with shape [num_variables, batch_size].
+        '''
+        return torch.cat([torch.tensor(self.sorted_variables).unsqueeze(0) for _ in range(batch_size)], dim=0).permute(1,0)
+          
+    
+
+# def vars_permutation(num_variables,
+#                      batch_size = 1,
+#                      permute_vars=False):
+#     """
+#     Returns a tensor with shape [num_variables, batch_size]: A permutation of the variables.
+#     """
+#     if permute_vars:
+#         # Generate a random permutation of the variables
+#         permutation = torch.cat([torch.randperm(num_variables).unsqueeze(0) for _ in range(batch_size)], dim=0).permute(1,0)
+    
+#     else:
+#         # Permute the variables according to the order of appearance in the formula
+#         permutation = torch.cat([torch.tensor(sorted_variables).unsqueeze(0) for _ in range(batch_size)], dim=0).permute(1,0)
+    
+#     # ::permutation:: [num_variables, batch_size]; e.g.: [[0, 1, 2, 3, 4], [0, 1, 2, 3, 4]]
+#     return permutation
 
 
+# def vars_importance(formula):
+#     """
+#     Permute the variables according the number of incidences in the formula.
+#     """
+#     # Counts the number of times each variable appears in the formula.
+#     var_count = {}
+#     for clause in formula:
+#         for literal in clause:
+#             var = abs(literal)
+#             if var in var_count:
+#                 var_count[var] += 1
+#             else:
+#                 var_count[var] = 1
+    
+#     # Sort the variables in decreasing order based on their values, breaking ties by choosing the variable with the larges index.
+#     sorted_counts = sorted(var_count.items(), key=lambda x: (x[1], x[0]), reverse=True)
+
+#     # Return the sorted variables as a list.
+#     sorted_variables = [item[0] for item in sorted_counts]
+#     return sorted_variables
+    
+    
 def params_summary(model):
     for name, param in model.named_parameters():
         if param.requires_grad:
