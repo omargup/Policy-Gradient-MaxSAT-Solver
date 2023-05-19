@@ -90,7 +90,17 @@ def pg_solver(config):
     num_variables = n
     if config['verbose'] > 0:
         print(f"\nFormula loaded from: {config['data_dir']}.")
-
+    
+    # Permutation of the variables
+    if config['vars_permutation'] == "importance":
+        vars_permutation = utils.VarsImportance(num_variables, formula)
+    elif config['vars_permutation'] == "batch":
+        vars_permutation = utils.VarsPermutation(num_variables, random_batch=False)
+    elif config['vars_permutation'] == "random":
+        vars_permutation = utils.VarsPermutation(num_variables, random_batch=True)
+    else:
+        raise ValueError(f"{config['vars_permutation']} is not a valid value, try with 'incidence', 'batch' or 'random'.")
+    
     # ###########################################################################
     # print("\nBefore load node2vec:", torch.cuda.memory_allocated(device))
     # print("\tAllocated:", round(torch.cuda.memory_allocated(device)/1024**3,1), "GB")
@@ -148,6 +158,7 @@ def pg_solver(config):
 
     else:
         raise ValueError(f"{config['node2vec']} is not a valid value, try with True or False.")
+   
     
     # ###########################################################################
     # print("\n1. After load node2vec:", torch.cuda.memory_allocated(device), 'B')
@@ -265,10 +276,9 @@ def pg_solver(config):
                           policy_network=policy_network,
                           optimizer=optimizer,
                           device=device,
-                          batch_size=config['batch_size'],
-                          permute_vars = config['permute_vars'],
-                          permute_seed = config['permute_seed'],
                           baseline = baseline,
+                          vars_permutation = vars_permutation,
+                          batch_size=config['batch_size'],
                           logit_clipping=config['logit_clipping'],
                           #logit_temp=config['logit_temp'],
                           entropy_estimator=config['entropy_estimator'],

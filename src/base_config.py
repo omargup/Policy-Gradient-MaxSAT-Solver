@@ -52,8 +52,7 @@ def get_config(new_config=None):
             "num_samples": 15000, # (int).
             "accumulation_episodes": 1,  # (int).
             "batch_size": 10,  # (int).
-            "permute_vars": True,  # (bool).
-            "permute_seed": None,  # (int). e.g.: 2147483647
+            "vars_permutation": "importance",  # (str). {"importance", "random", "batch"}
             "clip_grad": 1,  # (float > 0) e.g.:0.00015.
             "lr": 0.00015,  # (float). e.g.: 0.00015.
 
@@ -113,9 +112,6 @@ def get_config(new_config=None):
         else:  # GRU or LSTM
             del config["num_heads"]
             del config["dense_size"]
-
-        #if not config["permute_vars"]: 
-        #    del config["permute_seed"]
         
         if (config["baseline"] == 'zero') or (config["baseline"] == "greedy"):
            del config["alpha_ema"]

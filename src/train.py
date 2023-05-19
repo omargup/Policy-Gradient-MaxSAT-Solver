@@ -64,10 +64,9 @@ class Buffer():
 def run_episode(num_variables,
                 policy_network,
                 device,
+                vars_permutation,
                 strategy='sampled',
                 batch_size=1,
-                permute_vars=False,
-                permute_seed=None,  # e.g.: 2147483647 
                 logit_clipping=0,  # (int >= 0)
                 logit_temp=1,  # (float >= 1) 
                 extra_logging=False):         
@@ -84,7 +83,7 @@ def run_episode(num_variables,
         logit_clipping = False
     
     if (logit_temp < 1):
-        raise ValueError(f"`logit_temp` must be an integer equal or greater than 1, got {logit_temp}.")
+        raise ValueError(f"`logit_temp` must be a float equal or greater than 1, got {logit_temp}.")
     else:
         T = logit_temp
     
@@ -96,11 +95,7 @@ def run_episode(num_variables,
     buffer = Buffer(batch_size, num_variables, dec_output_size, device, extra_logging)
     batch_idx = [i for i in range(batch_size)]
 
-    permutation = utils.vars_permutation(num_variables,
-                                         device,
-                                         batch_size,
-                                         permute_vars,
-                                         permute_seed)
+    permutation = vars_permutation.permute(batch_size)
     # permutation: [num_variables, batch_size]
     #   e.g.: [[0, 1, 2, 3, 4], [0, 1, 2, 3, 4]]
     
@@ -272,9 +267,8 @@ def train(formula,
           optimizer,
           device,
           baseline,
+          vars_permutation,
           batch_size=1,
-          permute_vars=False,
-          permute_seed=None,
           logit_clipping=0,  # (int >= 0)
           #logit_temp=1,  # (float >= 1)
           entropy_estimator='crude',  # {'crude', 'smooth'}
@@ -297,32 +291,9 @@ def train(formula,
     
     ARGUMENTS
     ----------
-        formula: list.
-        num_variables: int, number of variables in the formula.
-        variables
-        policy_network: nn.Module.
-        optimizer: torch.optimizer
-        device: torch.device.
-        baseline: nn.Module. 
-        formula_emb:
-        batch_size: int.
-        permute_vars: bool, {True, False}.
-        permute_seed: long,
-        entropy_weight:
-        clip_grad:
-        num_episodes
-        accumulation_episodes
         log_interval: int. Log info every `log_interval` episodes. Default: 100.
         eval_interval: int. Run evaluation every `eval_interval` episodes. Default: 100.
-        eval_strategies
-        writer
-        extra_logging
-        raytune
-        run_name
-        dimacs_dir
-        sat_stopping
-        verbose
-    
+
     RETURNS
     --------
         active_search: dic. 
@@ -374,7 +345,6 @@ def train(formula,
                      'total_samples': 0,
                      'trainable params': trainable_params}
     
-    
     # TODO num_samples must be divisible by batch_size
     num_episodes = int(np.ceil(num_samples / batch_size))
     for episode in tqdm(range(1, num_episodes + 1), disable=not progress_bar, ascii=True):
@@ -387,10 +357,9 @@ def train(formula,
         buffer = run_episode(num_variables=num_variables,
                              policy_network=policy_network,
                              device=device,
+                             vars_permutation=vars_permutation,
                              strategy='sampled',
                              batch_size=batch_size,
-                             permute_vars=permute_vars,
-                             permute_seed=permute_seed,
                              logit_clipping=logit_clipping,  # (int >= 0)
                              logit_temp=1,  # (float >= 1) 
                              extra_logging=extra_logging)   
@@ -417,8 +386,7 @@ def train(formula,
                                     num_variables=num_variables,
                                     policy_network=policy_network,
                                     device=device,
-                                    permute_vars=permute_vars,
-                                    permute_seed=permute_seed,
+                                    vars_permutation=vars_permutation,
                                     logit_clipping=logit_clipping,
                                     num_sat=num_sat).detach()
 
@@ -551,13 +519,13 @@ def train(formula,
                     buffer = run_episode(num_variables = num_variables,
                                          policy_network = policy_network,
                                          device = device,
+                                         vars_permutation = vars_permutation,
                                          strategy = 'greedy' if strat == 0 else 'sampled',
                                          batch_size = 1 if strat == 0 else strat,
-                                         permute_vars = permute_vars,
-                                         permute_seed = permute_seed,
                                          logit_clipping=logit_clipping,  # (int >= 0)
                                          logit_temp=T,  # (float >= 1)
                                          extra_logging=False)  
+                    
                     # ###########################################################################
                     # print(f"8. After eval {strat} {T}:", torch.cuda.memory_allocated(device))
                     # print("\tAllocated:", round(torch.cuda.memory_allocated(device)/1024**3,1), "GB")

@@ -24,7 +24,6 @@ class RolloutBaseline(Baseline):
         if temperature < 1:
             raise ValueError(f"{temperature} is not a valid number for temperature, try with a flot greater than or equal with 1.")
             
-
         if num_rollouts == -1:
             self.strategy = 'greedy'
             self.num_rollouts = 1
@@ -35,15 +34,14 @@ class RolloutBaseline(Baseline):
             self.temperature = temperature
 
     def forward(self, formula, num_variables, policy_network, device, 
-                permute_vars, permute_seed, logit_clipping, **kwargs):
+                vars_permutation, logit_clipping, **kwargs):
 
         buffer = run_episode(num_variables,
                              policy_network,
                              device,
+                             vars_permutation=vars_permutation,
                              strategy=self.strategy,
                              batch_size=self.num_rollouts,
-                             permute_vars=permute_vars,
-                             permute_seed=permute_seed,
                              logit_clipping=logit_clipping,
                              logit_temp=self.temperature,
                              extra_logging=False)
