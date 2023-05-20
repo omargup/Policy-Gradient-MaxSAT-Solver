@@ -27,17 +27,19 @@ def control_time(start_time: int, end_time: int):
     return elapsed_mins, elapsed_secs
 
 
-class VarsPermutation:
-    """
-    Random permutation of the variables.
+class RandomVarsPermutation:
+    """Random permutation of the variables. Each time the method permute() is called,
+    a different permutation is returned.
+    
+    If random_batch is True, then each permutation inside the batch is different;
+    else, all the permutations inside the batch are the same.
     """
     def __init__(self, num_variables, random_batch=True):
         self.num_variables = num_variables
         self.random_batch = random_batch
         
     def permute(self, batch_size):
-        '''Returns a random permutation of the variables as a tensor with shape [num_variables, batch_size].
-        If random_batch is True, then each permutation inside the batch is different. else, all the permutations inside the batch are the same.
+        ''' Returns a random permutation of the variables as a tensor with shape [num_variables, batch_size].
         '''
         if self.random_batch:
             return torch.cat([torch.randperm(self.num_variables).unsqueeze(0) for _ in range(batch_size)], dim=0).permute(1,0)
@@ -47,28 +49,38 @@ class VarsPermutation:
             
             
 
-class VarsImportance:
+class FixedVarsPermutation:
+    """ Fixed permutation of the variables. Every time the method permute() is called,
+    the same permutation is returned.
+    
+    If importances is set to True, then the permutation is based on the number of incidences
+    the variables have in the formula; when importances is False, a fixed permutation
+    is generated at random.
     """
-    Permutation of the variables based on the number of incidences in the formula.
-    """
-    def __init__(self, num_variables, formula):
-        # Initialize the incidence count of each variable to zero.
-        var_count = {}
-        for var in range(num_variables):
-            # +1 because DIMACS format starts indexing variables from 1.
-            var_count[var+1] = 0
+    def __init__(self, num_variables, formula, importance=True):
+        if importance:
+            # Initialize the incidence count of each variable to zero.
+            var_count = {}
+            for var in range(num_variables):
+                # +1 because DIMACS format starts indexing variables from 1.
+                var_count[var+1] = 0
+            
+            # Counts the number of times each variable appears in the formula.
+            for clause in formula:
+                for literal in clause:
+                    var = abs(literal)
+                    var_count[var] += 1
+            
+            # Sort the variables in decreasing order based on their values, breaking ties by choosing the variable with the larges index.
+            sorted_counts = sorted(var_count.items(), key=lambda x: (x[1], x[0]), reverse=True)
+            
+            # Return the sorted variables as a list. -1 because the variables are indexed from 0 to num_variables-1 in the code.
+            self.sorted_variables = [item[0]-1 for item in sorted_counts]
         
-        # Counts the number of times each variable appears in the formula.
-        for clause in formula:
-            for literal in clause:
-                var = abs(literal)
-                var_count[var] += 1
-        
-        # Sort the variables in decreasing order based on their values, breaking ties by choosing the variable with the larges index.
-        sorted_counts = sorted(var_count.items(), key=lambda x: (x[1], x[0]), reverse=True)
-        
-        # Return the sorted variables as a list. -1 because the variables are indexed from 0 to num_variables-1 in the code.
-        self.sorted_variables = [item[0]-1 for item in sorted_counts]
+        else:
+            # Generate a random permutation of the variables
+            #self.sorted_variables = torch.randperm(num_variables)
+            self.sorted_variables = [i for i in range(num_variables)]
         
     def permute(self, batch_size):
         '''Return a permutatino of the variables based on the number of incidences in the formula.
