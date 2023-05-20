@@ -52,7 +52,7 @@ def get_config(new_config=None):
             "num_samples": 15000, # (int).
             "accumulation_episodes": 1,  # (int).
             "batch_size": 10,  # (int).
-            "vars_permutation": "importance",  # (str). {"importance", "random", "batch"}
+            "vars_permutation": "importance",  # (str). {"fixed", importance", "random", "batch"}
             "clip_grad": 1,  # (float > 0) e.g.:0.00015.
             "lr": 0.00015,  # (float). e.g.: 0.00015.
 
