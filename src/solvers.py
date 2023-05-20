@@ -92,14 +92,16 @@ def pg_solver(config):
         print(f"\nFormula loaded from: {config['data_dir']}.")
     
     # Permutation of the variables
-    if config['vars_permutation'] == "importance":
-        vars_permutation = utils.VarsImportance(num_variables, formula)
+    if config['vars_permutation'] == "fixed":
+        vars_permutation = utils.FixedVarsPermutation(num_variables, formula, importance=False)
+    elif config['vars_permutation'] == "importance":
+        vars_permutation = utils.FixedVarsPermutation(num_variables, formula, importance=True)
     elif config['vars_permutation'] == "batch":
-        vars_permutation = utils.VarsPermutation(num_variables, random_batch=False)
+        vars_permutation = utils.RandomVarsPermutation(num_variables, random_batch=False)
     elif config['vars_permutation'] == "random":
-        vars_permutation = utils.VarsPermutation(num_variables, random_batch=True)
+        vars_permutation = utils.RandomVarsPermutation(num_variables, random_batch=True)
     else:
-        raise ValueError(f"{config['vars_permutation']} is not a valid value, try with 'incidence', 'batch' or 'random'.")
+        raise ValueError(f"{config['vars_permutation']} is not a valid value, try with 'fixed', incidence', 'batch' or 'random'.")
     
     # ###########################################################################
     # print("\nBefore load node2vec:", torch.cuda.memory_allocated(device))
