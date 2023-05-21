@@ -12,7 +12,7 @@ config = {
     "node2vec": True,  # (bool).
     "n2v_dir": os.path.abspath("n2v_emb"),  # (str).
     "n2v_dim": 64,  # (int).
-    "n2v_pretrained": False,  # {False, True}
+    "n2v_pretrained": True,  # {False, True}
     "n2v_walk_len": 10,  # (int).
     "n2v_context_size": 5,  # (int).
     "n2v_walks_per_node": 5,  # (int).
@@ -38,7 +38,7 @@ config = {
     "decoder": 'Transformer',  # (str). {'GRU', 'LSTM', "Transformer"}
     "num_layers": 2,  # (int).
     "output_size": 1,  # (int). Decoder output size: {1, 2}
-    "dropout": 0,  # (float).
+    "dropout": 0.1,  # (float).
 
     "hidden_size": 128,  # (int). Hidden size of the RNN.
     "trainable_state": True,  # (bool). Trainable initial state of the RNN if True, else zeros initial state.
@@ -50,15 +50,14 @@ config = {
     "num_samples": 12800,  # (int).
     "accumulation_episodes": 1,  # (int).
     "batch_size": 32,  #10 # (int).
-    "permute_vars": True,  # (bool).
-    "permute_seed": None,  # (int). e.g.: 2147483647
+    "vars_permutation": "importance",  # (str). {"importance", "random", "batch"}
     "clip_grad": 1.0,  # (float > 0) e.g.:0.00015.
     "lr": 0.00015 ,  # (float). e.g.: 0.00015. or 0.00001
 
     # Baseline
     "baseline": 'sample',  # {'zero', 'greedy', 'sample'. 'ema'}
     "alpha_ema": 0.99,  # (float). 0 <= alpha <= 1. EMA decay.
-    "k_samples": 8,  # (int). k >= 1. Number of samples used to obtain the sample baseline value.
+    "k_samples": 32,  # (int). k >= 1. Number of samples used to obtain the sample baseline value.
     "sampling_temp": 1.5, # (float >= 1). Sampling temperature for sample baseline.
 
     # Exploration
