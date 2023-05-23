@@ -282,7 +282,7 @@ def pg_solver(config):
                           vars_permutation = vars_permutation,
                           batch_size=config['batch_size'],
                           logit_clipping=config['logit_clipping'],
-                          #logit_temp=config['logit_temp'],
+                          logit_temp=config['logit_temp'],
                           entropy_estimator=config['entropy_estimator'],
                           beta_entropy = config['beta_entropy'],
                           clip_grad = config['clip_grad'],

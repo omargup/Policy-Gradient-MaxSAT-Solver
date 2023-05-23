@@ -270,7 +270,7 @@ def train(formula,
           vars_permutation,
           batch_size=1,
           logit_clipping=0,  # (int >= 0)
-          #logit_temp=1,  # (float >= 1)
+          logit_temp=1,  # (float >= 1)
           entropy_estimator='crude',  # {'crude', 'smooth'}
           beta_entropy=0,  
           clip_grad=0,  # (float >= 0)
@@ -278,7 +278,7 @@ def train(formula,
           accumulation_episodes=1,
           log_interval=100,
           eval_interval=100,
-          eval_strategies=[(0, 1), (10, 2)],  # (search strategy, temperature). 0 for greedy search, k >= 1 for k samples.
+          eval_strategies=[32],  # (int). 0 for greedy search, k >= 1 for k samples.
           writer = None,  # Tensorboard writer
           extra_logging = False,
           raytune = False,
@@ -322,7 +322,7 @@ def train(formula,
         print(policy_network) 
         print(f"\nTotal params: {total_params}")
         print(f"\nTrainable params: {trainable_params}")
-        print(f"\nStart training for run-id {run_name}")
+        print(f"\nStart training for run-id {run_name}\n")
 
     # Put model in train mode
     policy_network.to(device)
@@ -511,11 +511,11 @@ def train(formula,
             policy_network.eval()
             with torch.no_grad():
                 
-                for strat, T in eval_strategies:
+                for strat in eval_strategies:
                     if (strat < 0) or (type(strat) != int):
                         raise ValueError(f'Values in `eval_strategy` must be 0 if greedy or an integer greater or equal than 1 if sampled, got {strat}.')
-                    if T < 1:
-                        raise ValueError(f"{T} is not a valid number for temperature, try with a flot greater than or equal with 1.")
+                    #if T < 1:
+                    #    raise ValueError(f"{T} is not a valid number for temperature, try with a flot greater than or equal with 1.")
                     buffer = run_episode(num_variables = num_variables,
                                          policy_network = policy_network,
                                          device = device,
@@ -523,7 +523,7 @@ def train(formula,
                                          strategy = 'greedy' if strat == 0 else 'sampled',
                                          batch_size = 1 if strat == 0 else strat,
                                          logit_clipping=logit_clipping,  # (int >= 0)
-                                         logit_temp=T,  # (float >= 1)
+                                         logit_temp=logit_temp,  # (float >= 1)
                                          extra_logging=False)  
                     
                     # ###########################################################################
@@ -543,22 +543,23 @@ def train(formula,
                         if verbose > 0:
                             print(f'\tGreedy: {number_of_sat}.')
                         if raytune:
-                            report_dict[f'num_sat_greedy_{str(T)}'] = number_of_sat
+                            report_dict[f'num_sat_eval_greedy'] = number_of_sat
+                            #report_dict[f'num_sat_greedy_{str(T)}'] = number_of_sat
                         
-                    
                     else:
                         number_of_sat = num_sat.max().item()
                         if verbose > 0:
                             print(f'\tBest of {strat} samples: {number_of_sat}.')
                         if raytune:
-                            report_dict[f'num_sat_sample_{str(strat)}_{str(T)}'] = number_of_sat
+                            report_dict[f'num_sat_eval'] = number_of_sat
+                            #report_dict[f'num_sat_sample_{str(strat)}_{str(T)}'] = number_of_sat
                     
                     # Keep tracking the active search solution
                     if number_of_sat > active_search['num_sat']:
                         active_search['num_sat'] = number_of_sat
                         active_search['episode'] = episode
                         active_search['samples'] = current_samples
-                        active_search['strategy'] = f"{'greedy' if strat == 0 else 'sampled'}{'' if strat == 0 else '-'+str(strat)}{'-'+str(T)}"
+                        active_search['strategy'] = f"{'greedy' if strat == 0 else 'sampled'}{'' if strat == 0 else '-'+str(strat)}{'-'+str(logit_temp)}"
 
                         if strat == 0:
                             active_search['sol'] = buffer.action.detach().tolist()
