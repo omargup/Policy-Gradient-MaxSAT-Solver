@@ -353,7 +353,7 @@ n2v_exp_name='node2vec'
 n2v_dir = 'node2vec_emb'
 
 pg_batch_size=32
-pg_raytune_trials=2  # 34 # 50
+pg_raytune_trials=50  # 34 # 50
 #pg_grace_period=((2*n)+m)*8
 #pg_num_samples=((2*n)+m)*128
 #pg_scheduler_max_t=((2*n)+m)*64
@@ -364,6 +364,11 @@ output_dir = 'outputs'
 log_dir = 'logs'
 
 paths = paths_for_instances(num_vars, data_path)
+first_instances = []
+for inst in paths:
+    if inst[-6:-4] == '01':
+        first_instances.append(inst)
+paths = first_instances
 #paths = ['/home/omargp/Documents/Code/Learning-SAT-Solvers/data/rand/0020/0092/rand_n=0020_k=03_m=0092_i=01.cnf']
 
 
@@ -372,21 +377,21 @@ paths = paths_for_instances(num_vars, data_path)
 # Run hyperparameters search for node2vec emb       #
 #####################################################
 
-# for i, instance_dir in enumerate(paths):
-#     tail = os.path.split(instance_dir)[1]
-#     instance_filename = os.path.splitext(tail)[0]
-#     exp_path = os.path.join(n2v_exp_name, str(n2v_dim), instance_filename)
+for i, instance_dir in enumerate(paths):
+    tail = os.path.split(instance_dir)[1]
+    instance_filename = os.path.splitext(tail)[0]
+    exp_path = os.path.join(n2v_exp_name, str(n2v_dim), instance_filename)
 
-#     torch.cuda.empty_cache()
-#     n2v_hypersearch(instance_dir,
-#                     n2v_dim=n2v_dim,
-#                     n2v_num_epochs=n2v_num_epochs,
-#                     exp_name=exp_path,
-#                     raytune_trials=n2v_raytune_trials,
-#                     raytune_dir=raytune_dir,
-#                     grace_period=n2v_grace_period,
-#                     scheduler_max_t=n2v_scheduler_max_t,
-#                     resources_per_trial=n2v_resources_per_trial)
+    torch.cuda.empty_cache()
+    n2v_hypersearch(instance_dir,
+                    n2v_dim=n2v_dim,
+                    n2v_num_epochs=n2v_num_epochs,
+                    exp_name=exp_path,
+                    raytune_trials=n2v_raytune_trials,
+                    raytune_dir=raytune_dir,
+                    grace_period=n2v_grace_period,
+                    scheduler_max_t=n2v_scheduler_max_t,
+                    resources_per_trial=n2v_resources_per_trial)
         
     
 #####################################################
@@ -394,29 +399,29 @@ paths = paths_for_instances(num_vars, data_path)
 # Build node2vec emb with the best hyperparameters  #
 #####################################################
 
-# node2vec_dir = os.path.join(n2v_dir, str(n2v_dim))
-# os.makedirs(node2vec_dir, exist_ok=True)
+node2vec_dir = os.path.join(n2v_dir, str(n2v_dim))
+os.makedirs(node2vec_dir, exist_ok=True)
 
 
-# for i, instance_dir in enumerate(paths):
-#     tail = os.path.split(instance_dir)[1]
-#     instance_filename = os.path.splitext(tail)[0]
-#     exp_path = os.path.join(raytune_dir, n2v_exp_name, str(n2v_dim), instance_filename)
+for i, instance_dir in enumerate(paths):
+    tail = os.path.split(instance_dir)[1]
+    instance_filename = os.path.splitext(tail)[0]
+    exp_path = os.path.join(raytune_dir, n2v_exp_name, str(n2v_dim), instance_filename)
     
-#     # Load best config for this instance
-#     print(f"\nLoading best node2vec config from {exp_path} ...")
-#     restored_tuner = tune.Tuner.restore(path=exp_path,
-#                                         trainable=node2vec_tune)
-#     results = restored_tuner.get_results()
-#     best_config = results.get_best_result(metric="loss", mode="min").config
+    # Load best config for this instance
+    print(f"\nLoading best node2vec config from {exp_path} ...")
+    restored_tuner = tune.Tuner.restore(path=exp_path,
+                                        trainable=node2vec_tune)
+    results = restored_tuner.get_results()
+    best_config = results.get_best_result(metric="loss", mode="min").config
     
-#     best_config['n2v_verbose'] = 1
-#     best_config['n2v_raytune'] = False
-#     best_config['n2v_dir'] = node2vec_dir
-#     best_config['n2v_filename'] = f'{instance_filename}'
+    best_config['n2v_verbose'] = 1
+    best_config['n2v_raytune'] = False
+    best_config['n2v_dir'] = node2vec_dir
+    best_config['n2v_filename'] = f'{instance_filename}'
 
-#     torch.cuda.empty_cache()
-#     node2vec_tune(best_config)
+    torch.cuda.empty_cache()
+    node2vec_tune(best_config)
 
 
 #####################################################
