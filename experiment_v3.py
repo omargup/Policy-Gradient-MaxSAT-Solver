@@ -255,9 +255,9 @@ def pg_hypersearch(instance_dir,
             
             # Training - Permutation
             if (assumption == 'arch') or (assumption == 'baseline'):
-                permutation = config["vars_permutation"] = 'importance'
+                permutation = config["vars_permutation"] = 'fixed'
             else:
-                permutation = trial.suggest_categorical("vars_permutation", ["importance", "random", "batch"])
+                permutation = trial.suggest_categorical("vars_permutation", ["fixed", "importance", "random", "batch"])
             
             # Training - Baseline
             if assumption == 'arch':
@@ -267,6 +267,7 @@ def pg_hypersearch(instance_dir,
                 
             if baseline == "sample":
                 trial.suggest_categorical("k_samples", [2, 4, 8, 16, 32])  # int, k >= 1
+                trial.suggest_float("sampling_temp", 1.0, 2.6, step=0.2)  # {float >= 1}
             elif baseline == "ema":
                 trial.suggest_float("alpha_ema", 0.95, 0.99, step=0.01)  # 0 <= alpha <= 1
         
