@@ -152,7 +152,7 @@ def pg_hypersearch(instance_dir,
                    scheduler_max_t=5000,
                    resources_per_trial={"cpu": 6, "gpu": 0.5}):
     
-    assumps = ['arch', 'baseline', 'permute', 'node2vec']
+    assumps = ['arch', 'baseline', 'permute', 'entropy', 'node2vec']
     for assumption in assumps:
         exp_name1 = f'{exp_name}/{assumption}'
         
@@ -241,7 +241,8 @@ def pg_hypersearch(instance_dir,
                 trial.suggest_categorical("hidden_size", [64, 128, 256, 512, 768, 1024])
                 trial.suggest_categorical("trainable_state", [True, False])
             num_layers = trial.suggest_int("num_layers", 1, 3)
-            trial.suggest_categorical("output_size", [1, 2])
+            #trial.suggest_categorical("output_size", [1, 2])
+            config["output_size"] = 1
             dropout_flag = ((decoder == "GRU") and (num_layers > 1)) or ((decoder == "LSTM") and (num_layers > 1))
             if (decoder == "Transformer") or dropout_flag:
                 trial.suggest_float("dropout", 0, 0.3, step=0.05)
@@ -255,9 +256,9 @@ def pg_hypersearch(instance_dir,
             
             # Training - Permutation
             if (assumption == 'arch') or (assumption == 'baseline'):
-                permutation = config["vars_permutation"] = 'fixed'
+                config["vars_permutation"] = 'fixed'
             else:
-                permutation = trial.suggest_categorical("vars_permutation", ["fixed", "importance", "random", "batch"])
+                trial.suggest_categorical("vars_permutation", ["fixed", "importance", "random", "batch"])
             
             # Training - Baseline
             if assumption == 'arch':
@@ -274,11 +275,18 @@ def pg_hypersearch(instance_dir,
             trial.suggest_categorical("clip_grad", [0, 0.5, 1, 1.5, 2])
             trial.suggest_float("lr", 1e-6, 1e-4, log=True)  # 0.00015   0.00001
             
-            # Exploration
-            trial.suggest_categorical("entropy_estimator", ['crude', 'smooth'])
-            trial.suggest_categorical("beta_entropy", [0, 0.01, 0.03, 0.05, 0.1])  # float, beta >= 0
+            # Exploration 
             trial.suggest_categorical("logit_clipping", [0, 1, 2, 5, 10])  # {int >= 0}
             trial.suggest_float("logit_temp", 1.0, 2.6, step=0.2)  # {float >= 1}
+            
+            # Exploration - Entropy
+            if (assumption == 'arch') or (assumption == 'baseline') or (assumption == 'permute'):
+                config["entropy_estimator"] = 'crude'
+                config["beta_entropy"] = 0
+            else:  # assumption == 'entropy' or assumption == 'node2vec'
+                trial.suggest_categorical("entropy_estimator", ['crude', 'smooth'])
+                trial.suggest_categorical("beta_entropy", [0, 0.01, 0.03, 0.05, 0.1])  # float, beta >= 0
+            
             
             # Flag for optuna defined by run. Don't set to False.
             config["optuna_by_run"] = True
@@ -330,7 +338,6 @@ def pg_hypersearch(instance_dir,
         tuner = tune.Tuner(trainable_with_cpu_gpu,
                             tune_config=tune_config,
                             run_config=run_config)
-        
         results = tuner.fit()
     
      
@@ -354,7 +361,7 @@ n2v_exp_name='node2vec'
 n2v_dir = 'node2vec_emb'
 
 pg_batch_size=32
-pg_raytune_trials=50  # 34 # 50
+pg_raytune_trials=2  # 34 # 50
 #pg_grace_period=((2*n)+m)*8
 #pg_num_samples=((2*n)+m)*128
 #pg_scheduler_max_t=((2*n)+m)*64
@@ -378,21 +385,21 @@ paths = first_instances
 # Run hyperparameters search for node2vec emb       #
 #####################################################
 
-for i, instance_dir in enumerate(paths):
-    tail = os.path.split(instance_dir)[1]
-    instance_filename = os.path.splitext(tail)[0]
-    exp_path = os.path.join(n2v_exp_name, str(n2v_dim), instance_filename)
+# for i, instance_dir in enumerate(paths):
+#     tail = os.path.split(instance_dir)[1]
+#     instance_filename = os.path.splitext(tail)[0]
+#     exp_path = os.path.join(n2v_exp_name, str(n2v_dim), instance_filename)
 
-    torch.cuda.empty_cache()
-    n2v_hypersearch(instance_dir,
-                    n2v_dim=n2v_dim,
-                    n2v_num_epochs=n2v_num_epochs,
-                    exp_name=exp_path,
-                    raytune_trials=n2v_raytune_trials,
-                    raytune_dir=raytune_dir,
-                    grace_period=n2v_grace_period,
-                    scheduler_max_t=n2v_scheduler_max_t,
-                    resources_per_trial=n2v_resources_per_trial)
+#     torch.cuda.empty_cache()
+#     n2v_hypersearch(instance_dir,
+#                     n2v_dim=n2v_dim,
+#                     n2v_num_epochs=n2v_num_epochs,
+#                     exp_name=exp_path,
+#                     raytune_trials=n2v_raytune_trials,
+#                     raytune_dir=raytune_dir,
+#                     grace_period=n2v_grace_period,
+#                     scheduler_max_t=n2v_scheduler_max_t,
+#                     resources_per_trial=n2v_resources_per_trial)
         
     
 #####################################################
@@ -400,29 +407,29 @@ for i, instance_dir in enumerate(paths):
 # Build node2vec emb with the best hyperparameters  #
 #####################################################
 
-node2vec_dir = os.path.join(n2v_dir, str(n2v_dim))
-os.makedirs(node2vec_dir, exist_ok=True)
+# node2vec_dir = os.path.join(n2v_dir, str(n2v_dim))
+# os.makedirs(node2vec_dir, exist_ok=True)
 
 
-for i, instance_dir in enumerate(paths):
-    tail = os.path.split(instance_dir)[1]
-    instance_filename = os.path.splitext(tail)[0]
-    exp_path = os.path.join(raytune_dir, n2v_exp_name, str(n2v_dim), instance_filename)
+# for i, instance_dir in enumerate(paths):
+#     tail = os.path.split(instance_dir)[1]
+#     instance_filename = os.path.splitext(tail)[0]
+#     exp_path = os.path.join(raytune_dir, n2v_exp_name, str(n2v_dim), instance_filename)
     
-    # Load best config for this instance
-    print(f"\nLoading best node2vec config from {exp_path} ...")
-    restored_tuner = tune.Tuner.restore(path=exp_path,
-                                        trainable=node2vec_tune)
-    results = restored_tuner.get_results()
-    best_config = results.get_best_result(metric="loss", mode="min").config
+#     # Load best config for this instance
+#     print(f"\nLoading best node2vec config from {exp_path} ...")
+#     restored_tuner = tune.Tuner.restore(path=exp_path,
+#                                         trainable=node2vec_tune)
+#     results = restored_tuner.get_results()
+#     best_config = results.get_best_result(metric="loss", mode="min").config
     
-    best_config['n2v_verbose'] = 1
-    best_config['n2v_raytune'] = False
-    best_config['n2v_dir'] = node2vec_dir
-    best_config['n2v_filename'] = f'{instance_filename}'
+#     best_config['n2v_verbose'] = 1
+#     best_config['n2v_raytune'] = False
+#     best_config['n2v_dir'] = node2vec_dir
+#     best_config['n2v_filename'] = f'{instance_filename}'
 
-    torch.cuda.empty_cache()
-    node2vec_tune(best_config)
+#     torch.cuda.empty_cache()
+#     node2vec_tune(best_config)
 
 
 #####################################################
