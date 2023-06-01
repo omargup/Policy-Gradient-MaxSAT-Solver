@@ -19,7 +19,7 @@ class BasicVar(BaseVar):
     
     def forward(self, enc_output, formula, num_variables, *args):
         var = torch.tensor([i for i in range(num_variables)], dtype=torch.int64).unsqueeze(0)
-        # var: [batch_size, seq_len=num_vars]
+        # var: [batch_size=1, seq_len=num_vars]
         
         var = F.one_hot(var, num_variables).float()
         # var: [batch_size=1, seq_len=num_vars, features_size=num_vars]
