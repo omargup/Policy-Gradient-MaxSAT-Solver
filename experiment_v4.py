@@ -152,7 +152,7 @@ def pg_hypersearch(instance_dir,
                    scheduler_max_t=5000,
                    resources_per_trial={"cpu": 6, "gpu": 0.5}):
     
-    assumps = ['arch', 'baseline']
+    assumps = ['arch', 'baseline', 'node2vec']
     for assumption in assumps:
         exp_name1 = f'{exp_name}/{assumption}'
         
@@ -347,27 +347,27 @@ def pg_hypersearch(instance_dir,
 # Running the experiment                            #
 #####################################################
 
-lista = [50]
+lista = [10]
 for i in lista:
     num_vars = i
     data_path = 'data/rand'
     raytune_dir="hypersearch"
 
-    # n2v_dim=128
-    # n2v_num_epochs=30
-    # n2v_raytune_trials=35
-    # n2v_grace_period=5
-    # n2v_scheduler_max_t=25
-    # n2v_resources_per_trial={"cpu": 12, "gpu": 0.25}
-    # n2v_exp_name='node2vec'
+    n2v_dim=128
+    n2v_num_epochs=30
+    n2v_raytune_trials=35
+    n2v_grace_period=5
+    n2v_scheduler_max_t=25
+    n2v_resources_per_trial={"cpu": 10, "gpu": 0.2}
+    n2v_exp_name='node2vec'
     n2v_dir = 'node2vec_emb'
 
     pg_batch_size=32
-    pg_raytune_trials=50  # 34 # 50
+    pg_raytune_trials=2  # 34 # 50
     #pg_grace_period=((2*n)+m)*8
     #pg_num_samples=((2*n)+m)*128
     #pg_scheduler_max_t=((2*n)+m)*64
-    pg_resources_per_trial={"cpu": 12, "gpu": 0.25}
+    pg_resources_per_trial={"cpu": 4, "gpu": 0.5}
     pg_exp_name='pg_solver'
 
     output_dir = 'outputs'
@@ -387,21 +387,21 @@ for i in lista:
     # Run hyperparameters search for node2vec emb       #
     #####################################################
 
-    # for i, instance_dir in enumerate(paths):
-    #     tail = os.path.split(instance_dir)[1]
-    #     instance_filename = os.path.splitext(tail)[0]
-    #     exp_path = os.path.join(n2v_exp_name, str(n2v_dim), instance_filename)
+    for i, instance_dir in enumerate(paths):
+        tail = os.path.split(instance_dir)[1]
+        instance_filename = os.path.splitext(tail)[0]
+        exp_path = os.path.join(n2v_exp_name, str(n2v_dim), instance_filename)
 
-    #     torch.cuda.empty_cache()
-    #     n2v_hypersearch(instance_dir,
-    #                     n2v_dim=n2v_dim,
-    #                     n2v_num_epochs=n2v_num_epochs,
-    #                     exp_name=exp_path,
-    #                     raytune_trials=n2v_raytune_trials,
-    #                     raytune_dir=raytune_dir,
-    #                     grace_period=n2v_grace_period,
-    #                     scheduler_max_t=n2v_scheduler_max_t,
-    #                     resources_per_trial=n2v_resources_per_trial)
+        torch.cuda.empty_cache()
+        n2v_hypersearch(instance_dir,
+                        n2v_dim=n2v_dim,
+                        n2v_num_epochs=n2v_num_epochs,
+                        exp_name=exp_path,
+                        raytune_trials=n2v_raytune_trials,
+                        raytune_dir=raytune_dir,
+                        grace_period=n2v_grace_period,
+                        scheduler_max_t=n2v_scheduler_max_t,
+                        resources_per_trial=n2v_resources_per_trial)
             
         
     #####################################################
@@ -409,29 +409,29 @@ for i in lista:
     # Build node2vec emb with the best hyperparameters  #
     #####################################################
 
-    # node2vec_dir = os.path.join(n2v_dir, str(n2v_dim))
-    # os.makedirs(node2vec_dir, exist_ok=True)
+    node2vec_dir = os.path.join(n2v_dir, str(n2v_dim))
+    os.makedirs(node2vec_dir, exist_ok=True)
 
 
-    # for i, instance_dir in enumerate(paths):
-    #     tail = os.path.split(instance_dir)[1]
-    #     instance_filename = os.path.splitext(tail)[0]
-    #     exp_path = os.path.join(raytune_dir, n2v_exp_name, str(n2v_dim), instance_filename)
+    for i, instance_dir in enumerate(paths):
+        tail = os.path.split(instance_dir)[1]
+        instance_filename = os.path.splitext(tail)[0]
+        exp_path = os.path.join(raytune_dir, n2v_exp_name, str(n2v_dim), instance_filename)
         
-    #     # Load best config for this instance
-    #     print(f"\nLoading best node2vec config from {exp_path} ...")
-    #     restored_tuner = tune.Tuner.restore(path=exp_path,
-    #                                         trainable=node2vec_tune)
-    #     results = restored_tuner.get_results()
-    #     best_config = results.get_best_result(metric="loss", mode="min").config
+        # Load best config for this instance
+        print(f"\nLoading best node2vec config from {exp_path} ...")
+        restored_tuner = tune.Tuner.restore(path=exp_path,
+                                            trainable=node2vec_tune)
+        results = restored_tuner.get_results()
+        best_config = results.get_best_result(metric="loss", mode="min").config
         
-    #     best_config['n2v_verbose'] = 1
-    #     best_config['n2v_raytune'] = False
-    #     best_config['n2v_dir'] = node2vec_dir
-    #     best_config['n2v_filename'] = f'{instance_filename}'
+        best_config['n2v_verbose'] = 1
+        best_config['n2v_raytune'] = False
+        best_config['n2v_dir'] = node2vec_dir
+        best_config['n2v_filename'] = f'{instance_filename}'
 
-    #     torch.cuda.empty_cache()
-    #     node2vec_tune(best_config)
+        torch.cuda.empty_cache()
+        node2vec_tune(best_config)
 
 
     #####################################################
@@ -445,14 +445,13 @@ for i in lista:
         instance_filename = os.path.splitext(tail)[0]
         
         # Ensure the n2v embedding exists at n2v_dir/n2v_dim before running raytune.
-        #node2vec_dir = os.path.join(n2v_dir, str(n2v_dim))
-        #n2v_file = os.path.join(node2vec_dir, instance_filename + ".pt")
-        #if not os.path.isfile(n2v_file):
-        #    raise Exception(f"No node2vec emb was found at {n2v_file}.")
+        node2vec_dir = os.path.join(n2v_dir, str(n2v_dim))
+        n2v_file = os.path.join(node2vec_dir, instance_filename + ".pt")
+        if not os.path.isfile(n2v_file):
+            raise Exception(f"No node2vec emb was found at {n2v_file}.")
         
         # n2v experiment path + name
-        #n2v_exp_path = os.path.join(n2v_exp_name, str(n2v_dim), instance_filename)
-        n2v_exp_path = None
+        n2v_exp_path = os.path.join(n2v_exp_name, str(n2v_dim), instance_filename)
          
         # pg_solver experiment path + name
         n, m, _ = utils.dimacs2list(instance_dir)
@@ -472,8 +471,6 @@ for i in lista:
                     scheduler_max_t=((2*n)+m)*64,
                     resources_per_trial=pg_resources_per_trial)
         
-    
-    
     
     #####################################################
     # Fourth step:                                      #
