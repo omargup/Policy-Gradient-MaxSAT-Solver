@@ -178,7 +178,7 @@ def pg_hypersearch(instance_dir,
                 "sat_stopping": False,
                 "log_interval": 10,
                 "eval_interval": 10,
-                "eval_strategies": [32],
+                "eval_strategies": [128],
                 "tensorboard_on": False,
                 "extra_logging": False,  # log TrainableState's weights
                 "raytune": True,
@@ -347,7 +347,7 @@ def pg_hypersearch(instance_dir,
 # Running the experiment                            #
 #####################################################
 
-lista = [10]
+lista = [20]
 for i in lista:
     num_vars = i
     data_path = 'data/rand'
@@ -363,11 +363,11 @@ for i in lista:
     n2v_dir = 'node2vec_emb'
 
     pg_batch_size=32
-    pg_raytune_trials=2  # 34 # 50
+    pg_raytune_trials=50  # 34 # 50
     #pg_grace_period=((2*n)+m)*8
     #pg_num_samples=((2*n)+m)*128
     #pg_scheduler_max_t=((2*n)+m)*64
-    pg_resources_per_trial={"cpu": 4, "gpu": 0.5}
+    pg_resources_per_trial={"cpu": 15, "gpu": 0.3}
     pg_exp_name='pg_solver'
 
     output_dir = 'outputs'
