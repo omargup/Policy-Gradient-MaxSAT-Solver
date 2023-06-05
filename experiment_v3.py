@@ -222,7 +222,7 @@ def pg_hypersearch(instance_dir,
             trial.suggest_categorical("var_emb_size", [64, 128, 256])
             trial.suggest_categorical("assignment_emb_size", [64, 128, 256])
             if dec_context_initializer == "Node2VecContext":
-                trial.suggest_categorical("context_emb_size", [32, 64, 128, 256])
+                trial.suggest_categorical("context_emb_size", [64, 128, 256])
             else: # EmptyContext
                 config["context_emb_size"] = 0
             trial.suggest_categorical("model_dim", [64, 128, 256, 512])
@@ -240,7 +240,7 @@ def pg_hypersearch(instance_dir,
             else:  # rnn decoder
                 trial.suggest_categorical("hidden_size", [64, 128, 256, 512, 768, 1024])
                 trial.suggest_categorical("trainable_state", [True, False])
-            num_layers = trial.suggest_int("num_layers", 1, 3)
+            num_layers = trial.suggest_int("num_layers", 1, 4)
             #trial.suggest_categorical("output_size", [1, 2])
             config["output_size"] = 1
             dropout_flag = ((decoder == "GRU") and (num_layers > 1)) or ((decoder == "LSTM") and (num_layers > 1))
@@ -356,28 +356,28 @@ for i in lista:
     n2v_raytune_trials=35
     n2v_grace_period=5
     n2v_scheduler_max_t=25
-    n2v_resources_per_trial={"cpu": 6, "gpu": 0.5}
+    n2v_resources_per_trial={"cpu": 12, "gpu": 0.25}
     n2v_exp_name='node2vec'
     n2v_dir = 'node2vec_emb'
 
     pg_batch_size=32
-    pg_raytune_trials=2  # 34 # 50
+    pg_raytune_trials=50  # 34 # 50
     #pg_grace_period=((2*n)+m)*8
     #pg_num_samples=((2*n)+m)*128
     #pg_scheduler_max_t=((2*n)+m)*64
-    pg_resources_per_trial={"cpu": 6, "gpu": 0.5}
+    pg_resources_per_trial={"cpu": 12, "gpu": 0.25}
     pg_exp_name='pg_solver'
 
     output_dir = 'outputs'
     log_dir = 'logs'
 
-    #paths = paths_for_instances(num_vars, data_path)
+    paths = paths_for_instances(num_vars, data_path)
     #first_instances = []
     #for inst in paths:
     #    if inst[-6:-4] == '01':
     #        first_instances.append(inst)
     #paths = first_instances
-    paths = ['/home/omargp/Documents/Code/Learning-SAT-Solvers/data/rand/0020/0092/rand_n=0020_k=03_m=0092_i=01.cnf']
+    #paths = ['/home/ogutierrez/Documents/Code/Learning-SAT-Solvers/data/rand/0020/0092/rand_n=0020_k=03_m=0092_i=01.cnf']
 
 
     #####################################################
