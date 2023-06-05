@@ -57,7 +57,7 @@ def rand_dataset():
     """
     This function generates the following instances:
     For k=3 and n=[10, 20, 30, ..., 100]:
-        - 11 Uniform random instances with r=[1.0, 1.5, ..., 5.0]
+        - 5 Uniform random instances with r=[1.0, 1.5, ..., 4.5]
 
     """
     print("Building rand_dataset")
@@ -66,7 +66,7 @@ def rand_dataset():
     dir_name = 'data/rand'
     data_name = 'rand'
     n_list = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100]
-    r_list = [1.0, 1.5, 2.0, 2.5, 3.0, 3.2, 3.4, 3.6, 3.8, 4.0, 4.2, 4.4, 4.6]
+    r_list = [1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5]
     k = 3
     num_instances = 5
 
@@ -180,7 +180,7 @@ def sr_dataset():
 
 
 if __name__ == '__main__':
-    toy_dataset()
+    #toy_dataset()
     rand_dataset()
-    sat_rand_dataset()
-    sr_dataset()
+    #sat_rand_dataset()
+    #sr_dataset()
