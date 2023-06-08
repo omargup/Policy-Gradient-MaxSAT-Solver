@@ -152,11 +152,11 @@ def pg_hypersearch(instance_dir,
                    scheduler_max_t=5000,
                    resources_per_trial={"cpu": 6, "gpu": 0.5}):
     
-    assumps = ['arch', 'baseline', 'node2vec']
-    for assumption in assumps:
-        exp_name1 = f'{exp_name}/{assumption}'
+    assumptions = [['arch'], ['arch', 'baseline'], ['arch', 'baseline', 'node2vec']]
+    for assumption in assumptions:
+        exp_name1 = f'{exp_name}/{assumption[-1]}'
         
-        if assumption == 'node2vec':
+        if 'node2vec' in assumption:
             # Load best node2vec config for this instance
             n2v_exp_path = os.path.join(raytune_dir, n2v_exp_name)
             print(f"\nLoading best node2vec config from {n2v_exp_path} ...")
@@ -194,15 +194,12 @@ def pg_hypersearch(instance_dir,
             
             # Search space
             # Input and embeddings
-            if assumption == 'node2vec':
+            if 'node2vec' in assumption:
                 node2vec = trial.suggest_categorical("node2vec", [True, False])
             else:
                 node2vec = config["node2vec"] = False
                 
-            if not node2vec:
-                config["dec_var_initializer"] = "BasicVar"
-                dec_context_initializer = config["dec_context_initializer"] = "EmptyContext"
-            else:
+            if node2vec:
                 config["n2v_dir"] = n2v_config['n2v_dir']
                 config["n2v_dim"] = n2v_config["n2v_dim"]
                 config["n2v_pretrained"] = True
@@ -219,7 +216,10 @@ def pg_hypersearch(instance_dir,
                 
                 config["dec_var_initializer"] = "Node2VecVar"
                 dec_context_initializer = trial.suggest_categorical("dec_context_initializer", ["EmptyContext", "Node2VecContext"])
-                
+            else:
+                config["dec_var_initializer"] = "BasicVar"
+                dec_context_initializer = config["dec_context_initializer"] = "EmptyContext"
+                  
             trial.suggest_categorical("var_emb_size", [64, 128, 256])
             trial.suggest_categorical("assignment_emb_size", [64, 128, 256])
             if dec_context_initializer == "Node2VecContext":
@@ -229,11 +229,10 @@ def pg_hypersearch(instance_dir,
             trial.suggest_categorical("model_dim", [64, 128, 256, 512])
                 
             # Decoder
-            #if assumption == 'arch':
-            #    decoder = trial.suggest_categorical("decoder", ["Transformer", "GRU", "LSTM"])
-            #else:
-            #    decoder = config["decoder"] = "Transformer"
-            decoder = trial.suggest_categorical("decoder", ["Transformer", "GRU", "LSTM"])
+            if 'arch' in assumption:
+                decoder = trial.suggest_categorical("decoder", ["Transformer", "GRU", "LSTM"])
+            else:
+                decoder = config["decoder"] = "Transformer"
                 
             if decoder == "Transformer":
                 trial.suggest_categorical("num_heads", [1, 2, 4])
@@ -241,6 +240,7 @@ def pg_hypersearch(instance_dir,
             else:  # rnn decoder
                 trial.suggest_categorical("hidden_size", [64, 128, 256, 512, 768, 1024])
                 trial.suggest_categorical("trainable_state", [True, False])
+            
             num_layers = trial.suggest_int("num_layers", 1, 4)
             #trial.suggest_categorical("output_size", [1, 2])
             config["output_size"] = 1
@@ -256,16 +256,16 @@ def pg_hypersearch(instance_dir,
             config["batch_size"] = batch_size
             
             # Training - Permutation
-            if (assumption == 'arch') or (assumption == 'baseline'):
-                config["vars_permutation"] = 'fixed'
-            else:
+            if 'permute' in assumption:
                 trial.suggest_categorical("vars_permutation", ["fixed", "importance", "random", "batch"])
-            
-            # Training - Baseline
-            if assumption == 'arch':
-                baseline = config["baseline"] = 'zero'
             else:
+                config["vars_permutation"] = 'fixed'
+                
+            # Training - Baseline
+            if 'baseline' in assumption:
                 baseline = trial.suggest_categorical("baseline", ['zero', 'greedy', 'sample', 'ema'])
+            else:
+                baseline = config["baseline"] = 'zero'
                 
             if baseline == "sample":
                 trial.suggest_categorical("k_samples", [2, 4, 8, 16, 32])  # int, k >= 1
@@ -281,13 +281,12 @@ def pg_hypersearch(instance_dir,
             trial.suggest_float("logit_temp", 1.0, 2.6, step=0.2)  # {float >= 1}
             
             # Exploration - Entropy
-            if (assumption == 'arch') or (assumption == 'baseline') or (assumption == 'permute'):
-                config["entropy_estimator"] = 'crude'
-                config["beta_entropy"] = 0
-            else:  # assumption == 'entropy' or assumption == 'node2vec'
+            if 'entropy' in assumption:
                 trial.suggest_categorical("entropy_estimator", ['crude', 'smooth'])
                 trial.suggest_categorical("beta_entropy", [0, 0.01, 0.03, 0.05, 0.1])  # float, beta >= 0
-            
+            else:
+                config["entropy_estimator"] = 'crude'
+                config["beta_entropy"] = 0
             
             # Flag for optuna defined by run. Don't set to False.
             config["optuna_by_run"] = True
@@ -328,14 +327,13 @@ def pg_hypersearch(instance_dir,
         reporter.add_metric_column('num_sat_eval')
 
         run_config = air.RunConfig(local_dir=raytune_dir,
-                                name=exp_name1,
-                                progress_reporter=reporter,  # None
-                                log_to_file=True)#,
-                                #checkpoint_config=air.CheckpointConfig(checkpoint_score_attribute="num_sat",
-                                #                                       checkpoint_score_order="max",
-                                #                                       num_to_keep=1))
+                                   name=exp_name1,
+                                   progress_reporter=reporter,  # None
+                                   log_to_file=True)#,
+                                   #checkpoint_config=air.CheckpointConfig(checkpoint_score_attribute="num_sat",
+                                   #                                       checkpoint_score_order="max",
+                                   #                                       num_to_keep=1))
 
-        # We have 1 GPU and 8 cpus, this will run 2 concurrent trials at a time.
         trainable_with_cpu_gpu = tune.with_resources(pg_solver, resources_per_trial)
         tuner = tune.Tuner(trainable_with_cpu_gpu,
                             tune_config=tune_config,
@@ -347,7 +345,7 @@ def pg_hypersearch(instance_dir,
 # Running the experiment                            #
 #####################################################
 
-lista = [20]
+lista = [50]
 for i in lista:
     num_vars = i
     data_path = 'data/rand'
@@ -367,7 +365,7 @@ for i in lista:
     #pg_grace_period=((2*n)+m)*8
     #pg_num_samples=((2*n)+m)*128
     #pg_scheduler_max_t=((2*n)+m)*64
-    pg_resources_per_trial={"cpu": 15, "gpu": 0.3}
+    pg_resources_per_trial={"cpu": 23, "gpu": 0.45}
     pg_exp_name='pg_solver'
 
     output_dir = 'outputs'
