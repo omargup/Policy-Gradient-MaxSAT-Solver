@@ -345,7 +345,7 @@ def pg_hypersearch(instance_dir,
 # Running the experiment                            #
 #####################################################
 
-lista = [50]
+lista = [100]
 for i in lista:
     num_vars = i
     data_path = 'data/rand'
@@ -365,13 +365,16 @@ for i in lista:
     #pg_grace_period=((2*n)+m)*8
     #pg_num_samples=((2*n)+m)*128
     #pg_scheduler_max_t=((2*n)+m)*64
-    pg_resources_per_trial={"cpu": 23, "gpu": 0.45}
+    pg_resources_per_trial={"cpu": 48, "gpu": 1}
+    #pg_resources_per_trial={"cpu": 23, "gpu": 0.45}
     pg_exp_name='pg_solver'
 
     output_dir = 'outputs'
     log_dir = 'logs'
 
     paths = paths_for_instances(num_vars, data_path)
+    paths = sorted(paths, reverse=True)
+
     #first_instances = []
     #for inst in paths:
     #    if inst[-6:-4] == '01':
