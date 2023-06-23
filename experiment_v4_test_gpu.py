@@ -351,7 +351,7 @@ def pg_hypersearch(instance_dir,
 lista = [100]
 for i in lista:
     num_vars = i
-    data_path = 'data/rand'
+    data_path = 'data/test'
     raytune_dir="test_hypersearch"
 
     n2v_dim=128
@@ -368,7 +368,7 @@ for i in lista:
     #pg_grace_period=((2*n)+m)*8
     #pg_num_samples=((2*n)+m)*128
     #pg_scheduler_max_t=((2*n)+m)*64
-    pg_resources_per_trial={"cpu": 48, "gpu": 1}
+    pg_resources_per_trial={"cpu": 24, "gpu": 0.5}
     pg_exp_name='test_pg_solver'
 
     output_dir = 'outputs'
