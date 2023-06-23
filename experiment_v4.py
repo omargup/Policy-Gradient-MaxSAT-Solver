@@ -366,6 +366,7 @@ for i in lista:
     #pg_num_samples=((2*n)+m)*128
     #pg_scheduler_max_t=((2*n)+m)*64
     pg_resources_per_trial={"cpu": 48, "gpu": 1}
+    #pg_resources_per_trial={"cpu": 15, "gpu": 0.3}
     #pg_resources_per_trial={"cpu": 23, "gpu": 0.45}
     pg_exp_name='pg_solver'
 
