@@ -83,7 +83,7 @@ class FixedVarsPermutation:
             self.sorted_variables = [i for i in range(num_variables)]
         
     def permute(self, batch_size):
-        '''Return a permutatino of the variables based on the number of incidences in the formula.
+        '''Return a permutation of the variables based on the number of incidences in the formula.
         The ouput is a tensor with shape [num_variables, batch_size].
         '''
         return torch.cat([torch.tensor(self.sorted_variables).unsqueeze(0) for _ in range(batch_size)], dim=0).permute(1,0)

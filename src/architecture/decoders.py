@@ -137,7 +137,7 @@ class TransformerDec(Decoder):
         # output: [seq_len, batch_size, d_model]
         
         output = output.permute(1, 0, 2)
-        # output: [batch_size, seq_len, hidden_size]
+        # output: [batch_size, seq_len, d_model]
         
         logits = self.dense_out(output)
         # logits: [batch_size, seq_len, output_size]  # output_size is 1 or 2.
