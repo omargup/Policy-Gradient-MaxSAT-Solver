@@ -16,7 +16,6 @@ class PolicyNetwork(nn.Module):
     - decoder (Decoder type): The decoder.
     - dec_var_initializer (BaseVar type): Variable initializer for the decore. If None (default), BasicVar is used.
     - dec_context_initializer (BaseContext type): Context initializer for the decoder. If None (default), EmptyContext is used.
-    - dec_state_initializer (BaseState type): State initializer for the decoder. If None (default), ZerosState is used.
     """
 
     def __init__(self,
@@ -76,7 +75,7 @@ class PolicyNetwork(nn.Module):
         
     def forward(self, dec_input, helper, *args):
         variable, assignment, context = dec_input
-        # variable: [batch_size, seq_len, features_size], could be n or 2*n2v_emb_size
+        # variable: [batch_size, seq_len, features_size], feature_size could be n or 2*n2v_emb_size
         # assignment: [batch_size, seq_len, features_size=3]
         # context: [batch_size, seq_len, features_size], feature_size could be 0 or 2*n2v_emb_size.
         
