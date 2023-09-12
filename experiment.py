@@ -15,7 +15,7 @@ import time
 #import pprint as pp
 
 #####################################################
-# Experiment v3                                     #
+# Experiment v4                                     #
 #####################################################
 
 def paths_for_instances(num_vars=20, data_path='data/rand'):
@@ -131,7 +131,6 @@ def n2v_hypersearch(instance_dir,
                                progress_reporter=reporter,  # None
                                log_to_file=True)
 
-    # We have 1 GPU and 12 cpus, this will run 2 concurrent trials at a time.
     trainable_with_cpu_gpu = tune.with_resources(node2vec_tune, resources_per_trial)
     tuner = tune.Tuner(trainable_with_cpu_gpu,
                         tune_config=tune_config,
@@ -345,7 +344,7 @@ def pg_hypersearch(instance_dir,
 # Running the experiment                            #
 #####################################################
 
-lista = [100]
+lista = [10, 20, 30, 40, 50, 100]
 for i in lista:
     num_vars = i
     data_path = 'data/rand'
@@ -356,7 +355,7 @@ for i in lista:
     n2v_raytune_trials=35
     n2v_grace_period=5
     n2v_scheduler_max_t=25
-    n2v_resources_per_trial={"cpu": 10, "gpu": 0.2}
+    n2v_resources_per_trial={"cpu": 10, "gpu": 0.2}  # Adjust this according to your resources
     n2v_exp_name='node2vec'
     n2v_dir = 'node2vec_emb'
 
@@ -365,7 +364,7 @@ for i in lista:
     #pg_grace_period=((2*n)+m)*8
     #pg_num_samples=((2*n)+m)*128
     #pg_scheduler_max_t=((2*n)+m)*64
-    pg_resources_per_trial={"cpu": 48, "gpu": 1}
+    pg_resources_per_trial={"cpu": 48, "gpu": 1}  # Adjust this according to your resources
     #pg_resources_per_trial={"cpu": 15, "gpu": 0.3}
     #pg_resources_per_trial={"cpu": 23, "gpu": 0.45}
     pg_exp_name='pg_solver'
@@ -472,10 +471,3 @@ for i in lista:
                     grace_period=((2*n)+m)*4,
                     scheduler_max_t=((2*n)+m)*64,
                     resources_per_trial=pg_resources_per_trial)
-        
-    
-    #####################################################
-    # Fourth step:                                      #
-    # Run pg_solver with the best hyperparameters       #
-    # for the rest of the instances.                    #
-    #####################################################
