@@ -50,7 +50,7 @@ config = {
     "num_samples": 12800,  # (int).
     "accumulation_episodes": 1,  # (int).
     "batch_size": 32,  #10 # (int).
-    "vars_permutation": "importance",  # (str). {"importance", "random", "batch"}
+    "vars_permutation": "importance",  # (str). {"fixed", importance", "random", "batch"}
     "clip_grad": 1.0,  # (float > 0) e.g.:0.00015.
     "lr": 0.00015 ,  # (float). e.g.: 0.00015. or 0.00001
 
@@ -62,7 +62,7 @@ config = {
 
     # Exploration
     "logit_clipping": 5,  # (int >= 0)
-    #"logit_temp": 2,  # (float >= 1). Useful for improve exploration in evaluation.
+    "logit_temp": 2,  # (float >= 1). Useful for improve exploration in evaluation.
     "entropy_estimator": 'crude',  # (str). {'crude', 'smooth'}
     "beta_entropy": 0.03,  # (float). beta >= 0.
 
@@ -70,7 +70,7 @@ config = {
     "sat_stopping": True,  # (bool). Stop when num_sat is equal with the num of clauses.
     "log_interval": 10,  # (int).
     "eval_interval": 10,  # (int).
-    "eval_strategies": [(0, 1), (32, 2)],  # (search strategy, temperature).  0 for greedy search, k >= 1 for k samples.
+    "eval_strategies": [32],  # (int). 0 for greedy search, k >= 1 for k samples.
     "tensorboard_on": True,  # (bool).
     "extra_logging": False,  # (bool). Log Trainable state's weights.
     "raytune": False,  # (bool).
