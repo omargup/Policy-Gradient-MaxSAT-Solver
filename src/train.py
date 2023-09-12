@@ -19,7 +19,7 @@ import time
 from tqdm import tqdm
 import json
 
-from GPUtil import showUtilization as gpu_usage
+#from GPUtil import showUtilization as gpu_usage
 
 
 class Buffer():
@@ -160,11 +160,11 @@ def run_episode(num_variables,
         
         else:  # transformer
             idx = permutation[:t+1]
-            var_t = dec_vars[batch_idx, idx].permute(1,0,2)
+            var_t = dec_vars[batch_idx, idx].permute(1, 0, 2)
             assert var_t.shape == (batch_size, t+1, dec_vars.shape[-1])
             # var_t: [batch_size, seq_len=t+1, feature_size={num_vars, 2*n2v_emb_dim}]
 
-            conx_t = dec_context[batch_idx, idx].permute(1,0,2)
+            conx_t = dec_context[batch_idx, idx].permute(1, 0, 2)
             assert conx_t.shape == (batch_size, t+1, dec_context.shape[-1])
             # conx_t: [batch_size, seq_len=t+1, feature_size={0, 2*n2v_emb_dim]
 
@@ -495,12 +495,21 @@ def train(formula,
                 writer.add_scalar('entropy/beta*entropy', beta_entropy * H_mean, current_samples, new_style=True)
 
                 if extra_logging:
-                    writer.add_histogram('histogram/action_logits', buffer.action_logits, current_samples)
-                    writer.add_histogram('histogram/action_probs', buffer.action_probs, current_samples)
+                    d_output_size = buffer.action_probs.shape[-1]
+                    if (batch_size != 1) or (d_output_size != 1):
+                        raise ValueError("batch_size and output_size must be 1 for extra logging.")
+
+                    for i in range(num_variables):
+                        writer.add_scalar(f'buffer/action_probs/x[{i}]', buffer.action_probs[0][i][0], current_samples, new_style=True) # batch0, var_i, p(x_i = 1
+
+                    #writer.add_scalars('buffer/action_probs', {f'x[{i},{0}]': buffer.action_probs[0][i][0] for i in range(num_variables)}, current_samples) # batch0, var_i, p(x_i = 1)
+
+                    #writer.add_histogram('histogram/action_logits', buffer.action_logits, current_samples)
+                    #writer.add_histogram('histogram/action_probs', buffer.action_probs, current_samples)
                     
-                    if policy_network.decoder.decoder_type == "GRU" or policy_network.decoder.decoder_type == "LSTM":
-                        if policy_network.decoder.trainable_state:
-                            writer.add_histogram('params/init_state', policy_network.decoder.init_state, current_samples)
+                    #if policy_network.decoder.decoder_type == "GRU" or policy_network.decoder.decoder_type == "LSTM":
+                    #    if policy_network.decoder.trainable_state:
+                    #        writer.add_histogram('params/init_state', policy_network.decoder.init_state, current_samples)
 
 
         # Evaluation
@@ -573,20 +582,20 @@ def train(formula,
                         writer.add_scalar(f"eval/{'greedy' if strat == 0 else 'sampled'}{'' if strat == 0 else '-'+str(strat)}",
                                           number_of_sat, current_samples, new_style=True)
                         
-                        if extra_logging:
-                            dec_output_size = policy_network.decoder.dense_out.bias.shape[0]  # decoder's output can be of size 1 or 2.
-                            if strat == 0:
-                                writer.add_scalars('eval_buffer/actions', {f'x[{i}]': buffer.action[0][i] for i in range(num_variables)}, current_samples)
-                                for out in range(dec_output_size):
-                                    writer.add_scalars('eval_buffer/logits', {f'x[{i},{out}]': buffer.action_logits[0][i][out] for i in range(num_variables)}, current_samples)  # batch0, var_i, unormalized p(x_i)
-                                    writer.add_scalars('eval_buffer/probs', {f'x[{i},{out}]': buffer.action_probs[0][i][out] for i in range(num_variables)}, current_samples) # batch0, var_i, p(x_i)
+                        # if extra_logging:
+                        #     dec_output_size = policy_network.decoder.dense_out.bias.shape[0]  # decoder's output can be of size 1 or 2.
+                        #     if strat == 0:
+                        #         writer.add_scalars('eval_buffer/actions', {f'x[{i}]': buffer.action[0][i] for i in range(num_variables)}, current_samples)
+                        #         for out in range(dec_output_size):
+                        #             writer.add_scalars('eval_buffer/logits', {f'x[{i},{out}]': buffer.action_logits[0][i][out] for i in range(num_variables)}, current_samples)  # batch0, var_i, unormalized p(x_i)
+                        #             writer.add_scalars('eval_buffer/probs', {f'x[{i},{out}]': buffer.action_probs[0][i][out] for i in range(num_variables)}, current_samples) # batch0, var_i, p(x_i)
                                 
-                            else:
-                                idx = num_sat.argmax().item()
-                                writer.add_scalars('eval_buffer/actions', {f'x[{i}]': buffer.action[idx][i] for i in range(num_variables)}, current_samples)
-                                for out in range(dec_output_size):
-                                    writer.add_scalars('eval_buffer/logits', {f'x[{i},{out}]': buffer.action_logits[idx][i][out] for i in range(num_variables)}, current_samples)  # batch idx, var_i, unormalized p(x_i)
-                                    writer.add_scalars('eval_buffer/probs', {f'x[{i},{out}]': buffer.action_probs[idx][i][out] for i in range(num_variables)}, current_samples) # batch idx, var_i, p(x_i)
+                        #     else:
+                        #         idx = num_sat.argmax().item()
+                        #         writer.add_scalars('eval_buffer/actions', {f'x[{i}]': buffer.action[idx][i] for i in range(num_variables)}, current_samples)
+                        #         for out in range(dec_output_size):
+                        #             writer.add_scalars('eval_buffer/logits', {f'x[{i},{out}]': buffer.action_logits[idx][i][out] for i in range(num_variables)}, current_samples)  # batch idx, var_i, unormalized p(x_i)
+                        #             writer.add_scalars('eval_buffer/probs', {f'x[{i},{out}]': buffer.action_probs[idx][i][out] for i in range(num_variables)}, current_samples) # batch idx, var_i, p(x_i)
             
             # Saving the best solution so far
             active_search['total_samples'] = current_samples
