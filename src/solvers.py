@@ -26,9 +26,10 @@ import os
 import json
 import pprint as pp
 
-from GPUtil import showUtilization as gpu_usage
+#from GPUtil import showUtilization as gpu_usage
 
 
+# Runs a random solver
 def random_solver(n, formula):
     # Create a random assignment
     assignment = utils.random_assignment(n=n)
@@ -37,6 +38,7 @@ def random_solver(n, formula):
     return assignment, num_sat
 
 
+# Runs the minisat solver
 def minisat_solver(n, formula):
     S = minisolvers.MinisatSolver()
     for i in range(n):
@@ -51,6 +53,7 @@ def minisat_solver(n, formula):
     return assignment, is_sat
 
 
+# Runs the policy gradient maxsat solver
 def pg_solver(config):
     # Configuration parameters
     config = get_config(config)
@@ -101,7 +104,7 @@ def pg_solver(config):
     elif config['vars_permutation'] == "random":
         vars_permutation = utils.RandomVarsPermutation(num_variables, random_batch=True)
     else:
-        raise ValueError(f"{config['vars_permutation']} is not a valid value, try with 'fixed', incidence', 'batch' or 'random'.")
+        raise ValueError(f"{config['vars_permutation']} is not a valid value, try with 'fixed', 'importance', 'batch' or 'random'.")
     
     # ###########################################################################
     # print("\nBefore load node2vec:", torch.cuda.memory_allocated(device))
