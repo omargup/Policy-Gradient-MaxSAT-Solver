@@ -1,8 +1,11 @@
-# Policy Gradient SAT Solver
+# Policy Gradient MaxSAT Solver
+
+![Assignment probability](results/assignment_prob.png)
+
 
 ## Model
 
-![Model](img/modular_model.png)
+![Model](img/high_level_model.png)
 
 ## Reproducibility
 
